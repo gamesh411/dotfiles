@@ -1,0 +1,7 @@
+[user]
+	name = Endre Fülöp
+	email = endre.fulop@sigmatechnology.com
+[rerere]
+	enabled = true
+[gc]
+	rerereResolved = never

@@ -5,3 +5,5 @@
 	enabled = true
 [gc]
 	rerereResolved = never
+[alias]
+	conflicts = diff --name-only --diff-filter=U

@@ -110,3 +110,9 @@ export NVM_DIR="$HOME/.nvm"
 
 alias vim=nvim
 alias lg=lazygit
+function ytdlmp3() {
+  yt-dlp --extract-audio --audio-format mp3 $1
+}
+
+export CCACHE_PREFIX="${HOME}/bin/distcc-wrap"
+export CCACHE_BASE_DIR="${HOME}"

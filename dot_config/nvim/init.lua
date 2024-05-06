@@ -711,19 +711,5 @@ vim.api.nvim_create_autocmd({ "BufReadPost" }, {
   end
 })
 
--- wsl clipboard
-vim.g.clipboard = {
-    name = "win32yank-wsl",
-    copy = {
-        ["+"] = "/home/gamesh411/bin/win32yank.exe -i --crlf",
-        ["*"] = "/home/gamesh411/bin/win32yank.exe -i --crlf"
-        },
-    paste = {
-        ["+"] = "/home/gamesh411/bin/win32yank.exe -o --lf",
-        ["*"] = "/home/gamesh411/bin/win32yank.exe -o --lf"
-      },
-    cache_enable = 0,
-}
-
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et

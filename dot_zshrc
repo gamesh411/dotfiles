@@ -1,5 +1,5 @@
 # If you come from bash you might have to change your $PATH.
-# export PATH=$HOME/bin:/usr/local/bin:$PATH
+export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -70,7 +70,9 @@ ZSH_THEME="agnoster"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git gh fzf npm python zsh-autosuggestions zsh-syntax-highlighting)
+plugins=(git gh fzf npm python)
+[ -d /usr/share/zsh-autosuggestions ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[ -d /usr/share/zsh-syntax-highlighting ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 DISABLE_UNTRACKED_FILES_DIRTY="true"
 
@@ -121,5 +123,7 @@ function ytdlmp3() {
   yt-dlp --extract-audio --audio-format mp3 $1
 }
 
-export CCACHE_PREFIX="${HOME}/bin/distcc-wrap"
-export CCACHE_BASE_DIR="${HOME}"
+for config_fragment in "${HOME}/.zshrc.d/"*.zsh; do
+  [ -f "${config_fragment}" ] && source "${config_fragment}"
+done
+

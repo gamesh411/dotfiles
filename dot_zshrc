@@ -132,12 +132,12 @@ alias lg=lazygit
 
 function prependpath() {
   local dir="${1:-$PWD}"
-  export PATH="$dir:$PATH"
+  export PATH="$(realpath "$dir"):$PATH"
 }
 
 function appendpath() {
   local dir="${1:-$PWD}"
-  export PATH="$PATH:$dir"
+  export PATH="$PATH:$(realpath "$dir")"
 }
 
 function ytdlmp3() {

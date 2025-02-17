@@ -141,6 +141,23 @@ function appendpath() {
   export PATH="$PATH:$(realpath "$dir")"
 }
 
+function removepath() {
+  local dir="${1:-$PWD}"
+  local full_path="$(realpath "$dir")"
+
+  local new_path=""
+  while read -rd: p; do
+    if [ "$p" != "$full_path" ]; then
+      if [ -z "$new_path" ]; then
+        new_path="$p"
+      else
+        new_path="$new_path:$p"
+      fi
+    fi
+  done <<<"$PATH:"
+  export PATH="$new_path"
+}
+
 function ytdlmp3() {
   yt-dlp --extract-audio --audio-format mp3 "$1"
 }

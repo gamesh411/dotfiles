@@ -1,3 +1,6 @@
+# Kiro CLI pre block. Keep at the top of this file.
+[[ -f "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.pre.zsh" ]] && builtin source "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.pre.zsh"
+
 # If you come from bash you might have to change your $PATH.
 export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
@@ -175,3 +178,5 @@ for config_fragment in "${HOME}/.zshrc.d/"*.zsh; do
   [ -f "${config_fragment}" ] && source "${config_fragment}"
 done
 
+# Kiro CLI post block. Keep at the bottom of this file.
+[[ -f "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.post.zsh"

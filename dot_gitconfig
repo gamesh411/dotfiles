@@ -7,3 +7,9 @@
 	rerereResolved = never
 [alias]
 	conflicts = diff --name-only --diff-filter=U
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential

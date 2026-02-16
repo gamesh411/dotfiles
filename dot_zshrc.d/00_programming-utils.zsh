@@ -1,3 +1,6 @@
+export EDITOR='nvim'
+export VISUAL='nvim'
+
 time-cmd() {
   if [[ $# -eq 0 ]]; then
     echo "Usage: time-cmd <command and args...> or pipe a command line to it"

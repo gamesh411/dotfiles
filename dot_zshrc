@@ -120,22 +120,28 @@ source $ZSH/oh-my-zsh.sh
 export PATH="$PATH:$HOME/bin"
 
 PYENV_DIR="$HOME/.pyenv"
-if [ -d $PYENV_DIR ]; then
-  if [ -d PYENV_DIR/bin ]; then
-    export PATH="$PYENV_DIR/bin:$PATH"
-  fi
+if [ -d "$PYENV_DIR" ]; then
+  export PATH="$PYENV_DIR/bin:$PATH"
   eval "$(pyenv init - zsh)"
 fi
 
 NVM_DIR="$HOME/.nvm"
-[ -d $NVM_DIR ] && export NVM_DIR && \
-([ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"; \
- [ -s "$NVM_DIR/zsh_completion" ] && source "$NVM_DIR/zsh_completion")
+if [ -d "$NVM_DIR" ]; then
+  export NVM_DIR
+  source "$NVM_DIR/nvm.sh"
+  source "$NVM_DIR/bash_completion"
+fi
 
 JENV_DIR="$HOME/.jenv/bin"
-[ -d "$HOME/.jenv/bin" ] && \
-  (export PATH="$HOME/.jenv/bin:$PATH"; \
-   eval "$(jenv init -)")
+if [ -d "$JENV_DIR" ]; then
+  export PATH="$JENV_DIR:$PATH"
+  eval "$(jenv init -)"
+fi
+
+CARGO_DIR="$HOME/.cargo"
+if [ -d "$CARGO_DIR" ]; then
+  source "$CARGO_DIR/env"
+fi
 
 alias vim=nvim
 

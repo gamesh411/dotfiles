@@ -1,1 +1,2 @@
 .zshrc.d/00_distcc_ericsson_environment.zsh
+.zshrc.d/00_ericsson_modules.zsh

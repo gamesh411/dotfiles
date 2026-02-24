@@ -129,7 +129,13 @@ NVM_DIR="$HOME/.nvm"
 if [ -d "$NVM_DIR" ]; then
   export NVM_DIR
   source "$NVM_DIR/nvm.sh"
-  source "$NVM_DIR/bash_completion"
+  zsh_completion_file="$NVM_DIR/zsh_completion"
+  bash_completion_file="$NVM_DIR/bash_completion"
+  if [ -f "$zsh_completion_file" ]; then
+    source "$zsh_completion_file"
+  elif [ -f "$bash_completion_file" ]; then
+    source "$bash_completion_file"
+  fi
 fi
 
 JENV_DIR="$HOME/.jenv/bin"

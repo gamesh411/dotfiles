@@ -1,2 +1,5 @@
 .zshrc.d/00_distcc_ericsson_environment.zsh
 .zshrc.d/00_ericsson_modules.zsh
+.config/nvim/.git
+.config/nvim/.gitignore
+.config/nvim/.neoconf.json

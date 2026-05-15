@@ -74,25 +74,19 @@ local theprimeagen_99 = {
       },
     })
 
-    -- take extra note that i have visual selection only in v mode
-    -- technically whatever your last visual selection is, will be used
-    -- so i have this set to visual mode so i dont screw up and use an
-    -- old visual selection
-    --
-    -- likely ill add a mode check and assert on required visual mode
-    -- so just prepare for it now
     vim.keymap.set("v", "<leader>av", function()
       _99.visual()
-    end)
+      vim.schedule(function() vim.cmd("startinsert") end)
+    end, { desc = "99: visual edit selection" })
 
-    --- if you have a request you dont want to make any changes, just cancel it
     vim.keymap.set("n", "<leader>ax", function()
       _99.stop_all_requests()
-    end)
+    end, { desc = "99: stop all requests" })
 
     vim.keymap.set("n", "<leader>as", function()
       _99.search()
-    end)
+      vim.schedule(function() vim.cmd("startinsert") end)
+    end, { desc = "99: search codebase" })
   end,
 }
 

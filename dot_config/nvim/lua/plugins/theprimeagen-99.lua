@@ -81,16 +81,16 @@ local theprimeagen_99 = {
     --
     -- likely ill add a mode check and assert on required visual mode
     -- so just prepare for it now
-    vim.keymap.set("v", "<leader>9v", function()
+    vim.keymap.set("v", "<leader>av", function()
       _99.visual()
     end)
 
     --- if you have a request you dont want to make any changes, just cancel it
-    vim.keymap.set("n", "<leader>9x", function()
+    vim.keymap.set("n", "<leader>ax", function()
       _99.stop_all_requests()
     end)
 
-    vim.keymap.set("n", "<leader>9s", function()
+    vim.keymap.set("n", "<leader>as", function()
       _99.search()
     end)
   end,

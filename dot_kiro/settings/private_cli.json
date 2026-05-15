@@ -1,0 +1,4 @@
+{
+  "chat.defaultModel": "claude-opus-4.6",
+  "chat.defaultAgent": "caveman-dev"
+}

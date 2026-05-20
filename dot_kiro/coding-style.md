@@ -12,7 +12,6 @@ description: >
 - Never explain HOW — code does that.
 - ASCII only. No unicode, no emdashes, no fancy punctuation.
 - Simple grammar. Short sentences. Avoid semicolons.
-- Write like a programmer typed it, not generated it.
 
 ## Formatting
 
@@ -23,8 +22,8 @@ description: >
 ## Code Quality
 
 - Correct. Handle edge cases.
-- Minimal. No unnecessary abstractions or dead code.
 - Secure. Validate input, no injection, no UB.
+- Minimal. No unnecessary abstractions or dead code.
 - Understandable. Clear names, obvious flow.
 - Maintainable. Easy to change later.
 - Performant. No wasteful allocations or redundant work.

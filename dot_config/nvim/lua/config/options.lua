@@ -4,3 +4,4 @@
 
 vim.g.autoformat = false
 vim.opt.winbar = "%=%m %f"
+vim.opt.exrc = true

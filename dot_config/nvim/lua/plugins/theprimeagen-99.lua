@@ -10,7 +10,7 @@ local theprimeagen_99 = {
     local basename = vim.fs.basename(cwd)
     _99.setup({
       provider = _99.Providers.KiroProvider,
-      model = "claude-sonnet-4.5",
+      model = "claude-sonnet-4.6",
       logger = {
         level = _99.DEBUG,
         path = "/tmp/" .. basename .. ".99.debug",
@@ -75,7 +75,7 @@ local theprimeagen_99 = {
     })
 
     vim.keymap.set("v", "<leader>av", function()
-      _99.visual()
+      _99.visual({})
       vim.schedule(function() vim.cmd("startinsert") end)
     end, { desc = "99: visual edit selection" })
 
@@ -84,9 +84,27 @@ local theprimeagen_99 = {
     end, { desc = "99: stop all requests" })
 
     vim.keymap.set("n", "<leader>as", function()
-      _99.search()
+      _99.search({})
       vim.schedule(function() vim.cmd("startinsert") end)
     end, { desc = "99: search codebase" })
+
+    vim.keymap.set("n", "<leader>ad", function()
+      _99.vibe({})
+      vim.schedule(function() vim.cmd("startinsert") end)
+    end, { desc = "99: vibe" })
+
+    vim.keymap.set("n", "<leader>ao", function()
+      _99.open()
+    end, { desc = "99: open" })
+
+    vim.keymap.set("n", "<leader>aC", function()
+      _99.clear_previous_requests()
+    end, { desc = "99: clear previous requests" })
+
+    vim.keymap.set("n", "<leader>at", function()
+      _99.tutorial({})
+      vim.schedule(function() vim.cmd("startinsert") end)
+    end, { desc = "99: tutorial" })
   end,
 }
 

@@ -74,37 +74,83 @@ local theprimeagen_99 = {
       },
     })
 
-    vim.keymap.set("v", "<leader>av", function()
-      _99.visual({})
-      vim.schedule(function() vim.cmd("startinsert") end)
-    end, { desc = "99: visual edit selection" })
+    require("which-key").add({
+      {"<leader>a", group = "AI-99"},
+      {
+        mode = "v",
+        "<leader>av",
+        function()
+          _99.visual({})
+          vim.schedule(function()
+            vim.cmd("startinsert")
+          end)
+        end,
+        desc = "99: visual edit selection",
+      },
 
-    vim.keymap.set("n", "<leader>ax", function()
-      _99.stop_all_requests()
-    end, { desc = "99: stop all requests" })
+      {
+        mode = "n",
+        "<leader>ax",
+        function()
+          _99.stop_all_requests()
+        end,
+        desc = "99: stop all requests",
+      },
 
-    vim.keymap.set("n", "<leader>as", function()
-      _99.search({})
-      vim.schedule(function() vim.cmd("startinsert") end)
-    end, { desc = "99: search codebase" })
+      {
+        mode = "n",
+        "<leader>as",
+        function()
+          _99.search({})
+          vim.schedule(function()
+            vim.cmd("startinsert")
+          end)
+        end,
+        desc = "99: search codebase",
+      },
 
-    vim.keymap.set("n", "<leader>ad", function()
-      _99.vibe({})
-      vim.schedule(function() vim.cmd("startinsert") end)
-    end, { desc = "99: vibe" })
+      {
+        mode = "n",
+        "<leader>ad",
+        function()
+          _99.vibe({})
+          vim.schedule(function()
+            vim.cmd("startinsert")
+          end)
+        end,
+        desc = "99: vibe",
+      },
 
-    vim.keymap.set("n", "<leader>ao", function()
-      _99.open()
-    end, { desc = "99: open" })
+      {
+        mode = "n",
+        "<leader>ao",
+        function()
+          _99.open()
+        end,
+        desc = "99: open",
+      },
 
-    vim.keymap.set("n", "<leader>aC", function()
-      _99.clear_previous_requests()
-    end, { desc = "99: clear previous requests" })
+      {
+        mode = "n",
+        "<leader>aC",
+        function()
+          _99.clear_previous_requests()
+        end,
+        desc = "99: clear previous requests",
+      },
 
-    vim.keymap.set("n", "<leader>at", function()
-      _99.tutorial({})
-      vim.schedule(function() vim.cmd("startinsert") end)
-    end, { desc = "99: tutorial" })
+      {
+        mode = "n",
+        "<leader>at",
+        function()
+          _99.tutorial({})
+          vim.schedule(function()
+            vim.cmd("startinsert")
+          end)
+        end,
+        desc = "99: tutorial",
+      },
+    })
   end,
 }
 

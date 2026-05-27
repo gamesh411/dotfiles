@@ -21,6 +21,7 @@
   "allowedTools": [],
   "resources": [
     "file://~/.kiro/coding-style.md",
+    "file://~/.kiro/principles.md",
     "skill://~/.kiro/skills/**/SKILL.md"
   ],
   "hooks": {},

@@ -1,5 +1,13 @@
 {
-  "chat.defaultModel": "claude-opus-4.6",
+  "ai.terminal-hash-sub": true,
   "chat.defaultAgent": "caveman-dev",
-  "mcp.loadedBefore": true
+  "chat.defaultModel": "claude-opus-4.6",
+  "mcp.loadedBefore": true,
+  "chat.modelDefaults": {
+    "claude-opus-4.6": {
+      "output_config": {
+        "effort": "max"
+      }
+    }
+  }
 }

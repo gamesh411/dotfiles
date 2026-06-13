@@ -194,6 +194,10 @@ for config_fragment in "${HOME}/.zshrc.d/"*.zsh; do
   [ -f "${config_fragment}" ] && source "${config_fragment}"
 done
 
+BUN_PATH="/Users/efulop/.bun/bin"
+[ -d "${BUN_PATH}" ] && \
+  export PATH="${BUN_PATH}:$PATH"
+
 # Kiro CLI post block. Keep at the bottom of this file.
 [[ -f "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/.local/share-ubuntu-24.04/kiro-cli/shell/zshrc.post.zsh"
 

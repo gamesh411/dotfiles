@@ -4,7 +4,8 @@
     "lazyvim.plugins.extras.coding.blink",
     "lazyvim.plugins.extras.editor.harpoon2",
     "lazyvim.plugins.extras.editor.mini-files",
-    "lazyvim.plugins.extras.lang.clangd"
+    "lazyvim.plugins.extras.lang.clangd",
+    "lazyvim.plugins.extras.lang.python"
   ],
   "install_version": 8,
   "news": {

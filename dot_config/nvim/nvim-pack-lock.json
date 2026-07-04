@@ -1,0 +1,8 @@
+{
+  "plugins": {
+    "leap.nvim": {
+      "rev": "d7f8ee64155b7790188f17a993390f32577cfb81",
+      "src": "https://codeberg.org/andyg/leap.nvim"
+    }
+  }
+}

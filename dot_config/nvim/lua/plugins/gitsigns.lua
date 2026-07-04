@@ -1,0 +1,21 @@
+require("gitsigns").setup({
+  on_attach = function(buf)
+    local gs = require("gitsigns")
+    local map = function(mode, lhs, rhs, desc)
+      vim.keymap.set(mode, lhs, rhs, { buffer = buf, desc = desc })
+    end
+    map("n", "]h", gs.next_hunk, "Next hunk")
+    map("n", "[h", gs.prev_hunk, "Prev hunk")
+    map("n", "<leader>gs", gs.stage_hunk, "Stage hunk")
+    map("n", "<leader>gr", gs.reset_hunk, "Reset hunk")
+    map("n", "<leader>gu", gs.undo_stage_hunk, "Undo stage hunk")
+    map("n", "<leader>gp", gs.preview_hunk, "Preview hunk")
+    map("n", "<leader>gb", gs.blame_line, "Blame line")
+    map("v", "<leader>gs", function()
+      gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") })
+    end, "Stage selection")
+    map("v", "<leader>gr", function()
+      gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") })
+    end, "Reset selection")
+  end,
+})

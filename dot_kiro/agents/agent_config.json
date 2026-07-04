@@ -20,12 +20,7 @@
   ],
   "toolAliases": {},
   "allowedTools": [],
-  "resources": [
-    "file://~/.kiro/coding-style.md",
-    "file://~/.kiro/principles.md",
-    "file://~/.kiro/checkpointing.md",
-    "skill://~/.kiro/skills/**/SKILL.md"
-  ],
+  "resources": [],
   "hooks": {},
   "toolsSettings": {},
   "mcpServers": {

@@ -15,7 +15,8 @@
     "delegate",
     "grep",
     "glob",
-    "@cavemem"
+    "@cavemem",
+    "@blender"
   ],
   "toolAliases": {},
   "allowedTools": [],
@@ -27,6 +28,26 @@
   ],
   "hooks": {},
   "toolsSettings": {},
+  "mcpServers": {
+    "blender": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/efulop/.kiro/mcp-servers/blender-mcp",
+        "blender-mcp"
+      ]
+    },
+    "cavemem": {
+      "command": "cavemem",
+      "args": [
+        "mcp"
+      ]
+    },
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp"
+    }
+  },
   "useLegacyMcpJson": true,
   "model": null
 }

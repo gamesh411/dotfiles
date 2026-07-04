@@ -10,6 +10,15 @@ time-cmd() {
   /usr/bin/time -lp "$@" 2>&1
 }
 
+swap() {
+  set -x
+  local file_1="$1"
+  local file_2="$2"
+
+  mv "${file_1}" "${file_1}.tmp" && mv "${file_2}" "${file_1}" && mv "${file_1}.tmp" "${file_2}"
+  set +x
+}
+
 format-cmd() {
   local flags_with_args=(-o -I -isystem -include -D -Xclang -analyzer-config -analyzer-checker -x --sysroot --target)
   local -A flag_map; for f in $flags_with_args; flag_map[$f]=1

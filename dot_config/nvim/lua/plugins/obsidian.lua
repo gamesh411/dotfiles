@@ -6,8 +6,8 @@ require("obsidian").setup({
     },
   },
 
-  notes_subdir = "Notes",
-  new_notes_location = "notes_subdir",
+  -- notes created in vault root
+  new_notes_location = "current_dir",
 
   daily_notes = {
     folder = "Daily",
@@ -36,10 +36,10 @@ require("obsidian").setup({
     },
   },
 
-  -- use title as filename, no timestamp prefix
+  -- use title as filename, preserving spaces
   note_id_func = function(title)
     if title then
-      return title:gsub(" ", "-"):gsub("[^A-Za-z0-9-]", ""):lower()
+      return title
     end
     return tostring(os.time())
   end,
@@ -77,6 +77,7 @@ require("obsidian").setup({
 local map = vim.keymap.set
 map("n", "<leader>oo", "<cmd>ObsidianOpen<cr>", { desc = "Open in Obsidian app" })
 map("n", "<leader>on", "<cmd>ObsidianNew<cr>", { desc = "New note" })
+map("n", "<leader>oN", "<cmd>ObsidianNewFromTemplate<cr>", { desc = "New note from template" })
 map("n", "<leader>os", "<cmd>ObsidianQuickSwitch<cr>", { desc = "Quick switch" })
 map("n", "<leader>of", "<cmd>ObsidianSearch<cr>", { desc = "Search vault" })
 map("n", "<leader>ob", "<cmd>ObsidianBacklinks<cr>", { desc = "Backlinks" })

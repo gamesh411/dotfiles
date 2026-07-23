@@ -42,6 +42,7 @@ telescope.setup({
 })
 
 telescope.load_extension("undo")
+telescope.load_extension("fzf")
 
 -- Keymaps
 local map = vim.keymap.set
@@ -54,3 +55,9 @@ map("n", "<leader>fr", builtin.oldfiles, { desc = "Recent files" })
 map("n", "<leader>fd", builtin.diagnostics, { desc = "Diagnostics" })
 map("n", "<leader>fu", "<cmd>Telescope undo<cr>", { desc = "Undo tree" })
 map("n", "<leader>/", builtin.current_buffer_fuzzy_find, { desc = "Fuzzy find in buffer" })
+map("n", "<leader>fS", builtin.lsp_document_symbols, { desc = "Document symbols" })
+map("n", "<leader>fw", builtin.lsp_dynamic_workspace_symbols, { desc = "Workspace symbols" })
+map("n", "<leader>ft", builtin.treesitter, { desc = "Treesitter symbols" })
+map("n", "<leader>fc", builtin.commands, { desc = "Commands" })
+map("n", "<leader>fk", builtin.keymaps, { desc = "Keymaps" })
+map("n", "<leader>f.", builtin.resume, { desc = "Resume last picker" })

@@ -4,7 +4,6 @@
   "autocomplete.fuzzySearch": true,
   "autocomplete.onlyShowOnTab": false,
   "autocomplete.preferVerboseSuggestions": true,
-  "chat.defaultAgent": "caveman-dev",
   "chat.defaultModel": "auto",
   "chat.modelDefaults": {
     "claude-opus-4.6": {

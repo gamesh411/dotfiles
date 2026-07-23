@@ -10,7 +10,7 @@ end
 
 require("lualine").setup({
   options = {
-    theme = "catppuccin-mocha",
+    theme = "catppuccin-latte",
   },
   sections = {
     lualine_a = { "mode" },

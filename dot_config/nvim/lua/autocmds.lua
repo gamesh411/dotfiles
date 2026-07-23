@@ -63,3 +63,57 @@ autocmd("VimLeavePre", {
     vim.cmd("mksession! " .. vim.fn.fnameescape(dir .. "/" .. name .. ".vim"))
   end,
 })
+
+-- restore <CR> in quickfix/loclist (overridden globally by leap.nvim)
+autocmd("FileType", {
+  group = augroup("QfEnter", {}),
+  pattern = "qf",
+  callback = function()
+    vim.keymap.set("n", "<CR>", "<CR>", { buffer = true, desc = "Quickfix jump" })
+  end,
+})
+
+-- Update all plugins (async git pull --ff-only)
+vim.api.nvim_create_user_command("PlugUpdate", function()
+  local dir = vim.fn.stdpath("data") .. "/site/pack/plugins/start"
+  local names = {}
+  for name in vim.fs.dir(dir) do
+    table.insert(names, name)
+  end
+  local total = #names
+  local done = 0
+  local results = {}
+
+  local function on_all_done()
+    vim.schedule(function()
+      vim.notify(table.concat(results, "\n"), vim.log.levels.INFO)
+      -- Rebuild blink.cmp and regenerate helptags after update
+      vim.cmd("helptags ALL")
+      require("blink.cmp").build():pwait()
+      -- Rebuild telescope-fzf-native
+      local fzf_dir = dir .. "/telescope-fzf-native.nvim"
+      if vim.uv.fs_stat(fzf_dir) then
+        vim.fn.system({ "make", "-C", fzf_dir })
+      end
+      vim.notify("PlugUpdate complete — helptags + blink rebuilt", vim.log.levels.INFO)
+    end)
+  end
+
+  vim.notify("PlugUpdate: updating " .. total .. " plugins...", vim.log.levels.INFO)
+  for _, name in ipairs(names) do
+    local path = dir .. "/" .. name
+    vim.fn.jobstart({ "git", "-C", path, "pull", "--ff-only" }, {
+      stdout_buffered = true,
+      on_stdout = function(_, data)
+        local out = table.concat(data, "")
+        table.insert(results, name .. ": " .. vim.trim(out))
+      end,
+      on_exit = function()
+        done = done + 1
+        if done == total then
+          on_all_done()
+        end
+      end,
+    })
+  end
+end, { desc = "Update all plugins (async)" })

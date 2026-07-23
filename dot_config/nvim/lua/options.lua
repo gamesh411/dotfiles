@@ -10,12 +10,17 @@ vim.opt.smartindent = true
 
 vim.opt.splitright = true
 vim.opt.splitbelow = true
+vim.opt.splitkeep = "screen"
 
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
+vim.opt.inccommand = "split"
+vim.opt.grepprg = "rg --vimgrep"
+vim.opt.grepformat = "%f:%l:%c:%m"
 
 vim.opt.undofile = true
 vim.opt.swapfile = false
+vim.opt.clipboard = "unnamedplus"
 
 vim.opt.termguicolors = true
 vim.opt.winbar = "%=%m %f"

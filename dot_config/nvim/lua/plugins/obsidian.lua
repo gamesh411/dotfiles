@@ -1,3 +1,8 @@
+local vault_path = vim.fn.expand("~/vaults/carbon")
+if not vim.uv.fs_stat(vault_path) then
+  return
+end
+
 require("obsidian").setup({
   workspaces = {
     {

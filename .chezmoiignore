@@ -3,3 +3,4 @@
 .config/nvim/.git
 .config/nvim/.gitignore
 .config/nvim/.neoconf.json
+.cursor/_cli-config.desired.json

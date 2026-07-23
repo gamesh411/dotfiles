@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp"
+    },
+    "blender": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/efulop/.kiro/mcp-servers/blender-mcp",
+        "blender-mcp"
+      ]
+    },
+    "open-brain": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/Users/efulop/projects/ai-brain/mcp/src/index.ts"
+      ]
+    }
+  }
+}

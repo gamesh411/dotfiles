@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Merge tracked Cursor CLI prefs into ~/.cursor/cli-config.json without dropping auth/caches."""
+import json
+import os
+import sys
+from pathlib import Path
+
+PRESERVE = {
+    "authInfo",
+    "privacyCache",
+    "serverConfigCache",
+    "autoReviewAvailabilityCache",
+}
+
+source_file = Path(os.environ["CHEZMOI_SOURCE_FILE"])
+desired_path = source_file.with_name("_cli-config.desired.json")
+desired = json.loads(desired_path.read_text())
+
+raw = sys.stdin.read()
+current = json.loads(raw) if raw.strip() else {}
+preserved = {k: current[k] for k in PRESERVE if k in current}
+
+merged = {**current, **desired, **preserved}
+json.dump(merged, sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")

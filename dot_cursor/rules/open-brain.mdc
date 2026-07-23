@@ -1,0 +1,27 @@
+---
+description: Use Open Brain for durable personal/project context across chats
+alwaysApply: true
+---
+
+# Open Brain
+
+You have MCP tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_capture`.
+
+## When to search
+
+Before non-trivial answers that depend on **this user's** preferences, constraints, past decisions, people, or project context, call `brain_search` (add `thought_type` / person / topic filters when helpful).
+
+Skip search for pure general knowledge, one-off trivia, or when the user already pasted full context.
+
+## When to capture
+
+Policy is the **same across harnesses** (Cursor, Kiro, etc.).
+
+- **Interactive sessions:** after a clear decision, preference, constraint, or "what we tried" outcome, **offer** `brain_capture` (do not silently spam). Use skill `open-brain-capture` templates when phrasing helps.
+- **Fully autonomous unattended runs** (no human in the loop, e.g. gnhf): you may checkpoint without offering. Budget ~2–5 durable captures per substantial run; quality over quantity.
+
+Always include **project context** in the capture body, and set `source` / provenance so bot-created entries can later be identified and tied to the project or session that produced them.
+
+## Never capture
+
+Secrets, API keys, passwords, OTP codes, private keys, connection strings with credentials.

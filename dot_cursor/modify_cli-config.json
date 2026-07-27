@@ -12,7 +12,7 @@ PRESERVE = {
     "autoReviewAvailabilityCache",
 }
 
-source_file = Path(os.environ["CHEZMOI_SOURCE_FILE"])
+source_file = Path(os.environ["CHEZMOI_SOURCE_DIR"]) / os.environ["CHEZMOI_SOURCE_FILE"]
 desired_path = source_file.with_name("_cli-config.desired.json")
 desired = json.loads(desired_path.read_text())
 

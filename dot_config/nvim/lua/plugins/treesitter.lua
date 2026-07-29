@@ -17,13 +17,15 @@ if #to_install > 0 then
   require("nvim-treesitter").install(to_install)
 end
 
--- Enable treesitter highlighting
-vim.api.nvim_create_autocmd("FileType", {
-  group = vim.api.nvim_create_augroup("TreesitterHighlight", {}),
-  callback = function()
-    pcall(vim.treesitter.start)
-  end,
-})
+-- Highlighting is owned by VS Code / Cursor when embedded
+if not vim.g.vscode then
+  vim.api.nvim_create_autocmd("FileType", {
+    group = vim.api.nvim_create_augroup("TreesitterHighlight", {}),
+    callback = function()
+      pcall(vim.treesitter.start)
+    end,
+  })
+end
 
 -- Treesitter textobjects
 require("nvim-treesitter-textobjects").setup()

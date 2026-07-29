@@ -1,6 +1,19 @@
 local autocmd = vim.api.nvim_create_autocmd
 local augroup = vim.api.nvim_create_augroup
 
+-- highlight on yank (works in both hosts)
+autocmd("TextYankPost", {
+  group = augroup("YankHighlight", {}),
+  callback = function()
+    vim.hl.on_yank()
+  end,
+})
+
+-- Host editor owns layout, sessions and plugin updates when embedded
+if vim.g.vscode then
+  return
+end
+
 -- autosave toggle
 vim.api.nvim_create_user_command("AutoSaveToggle", function()
   local group = augroup("AutoSave", { clear = true })
@@ -22,14 +35,6 @@ vim.api.nvim_create_user_command("AutoSaveToggle", function()
   end
 end, {})
 vim.keymap.set("n", "<leader>as", "<cmd>AutoSaveToggle<cr>", { desc = "Toggle autosave" })
-
--- highlight on yank
-autocmd("TextYankPost", {
-  group = augroup("YankHighlight", {}),
-  callback = function()
-    vim.hl.on_yank()
-  end,
-})
 
 -- resize splits on window resize
 autocmd("VimResized", {
@@ -75,7 +80,7 @@ autocmd("FileType", {
 
 -- Update all plugins (async git pull --ff-only)
 vim.api.nvim_create_user_command("PlugUpdate", function()
-  local dir = vim.fn.stdpath("data") .. "/site/pack/plugins/start"
+  local dir = vim.fn.stdpath("data") .. "/site/pack/plugins/opt"
   local names = {}
   for name in vim.fs.dir(dir) do
     table.insert(names, name)
@@ -87,15 +92,13 @@ vim.api.nvim_create_user_command("PlugUpdate", function()
   local function on_all_done()
     vim.schedule(function()
       vim.notify(table.concat(results, "\n"), vim.log.levels.INFO)
-      -- Rebuild blink.cmp and regenerate helptags after update
       vim.cmd("helptags ALL")
       require("blink.cmp").build():pwait()
-      -- Rebuild telescope-fzf-native
       local fzf_dir = dir .. "/telescope-fzf-native.nvim"
       if vim.uv.fs_stat(fzf_dir) then
         vim.fn.system({ "make", "-C", fzf_dir })
       end
-      vim.notify("PlugUpdate complete — helptags + blink rebuilt", vim.log.levels.INFO)
+      vim.notify("PlugUpdate complete - helptags + blink rebuilt", vim.log.levels.INFO)
     end)
   end
 

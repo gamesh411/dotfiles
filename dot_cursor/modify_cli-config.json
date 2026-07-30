@@ -12,6 +12,7 @@ PRESERVE = {
     "autoReviewAvailabilityCache",
 }
 
+# CHEZMOI_SOURCE_FILE is relative to CHEZMOI_SOURCE_DIR (script runs from /tmp).
 source_file = Path(os.environ["CHEZMOI_SOURCE_DIR"]) / os.environ["CHEZMOI_SOURCE_FILE"]
 desired_path = source_file.with_name("_cli-config.desired.json")
 desired = json.loads(desired_path.read_text())
@@ -21,5 +22,15 @@ current = json.loads(raw) if raw.strip() else {}
 preserved = {k: current[k] for k in PRESERVE if k in current}
 
 merged = {**current, **desired, **preserved}
+
+# Permission grants accrue per machine as tools get approved interactively, so a
+# wholesale replace would revoke them on every apply. Union instead: the desired
+# list is the floor, not the ceiling. Removing a grant means editing the target.
+allow = dict.fromkeys(
+    current.get("permissions", {}).get("allow", [])
+    + desired.get("permissions", {}).get("allow", [])
+)
+merged["permissions"] = {**desired.get("permissions", {}), "allow": list(allow)}
+
 json.dump(merged, sys.stdout, indent=2, ensure_ascii=False)
 sys.stdout.write("\n")

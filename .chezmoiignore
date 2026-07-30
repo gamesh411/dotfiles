@@ -4,3 +4,22 @@
 .config/nvim/.gitignore
 .config/nvim/.neoconf.json
 .cursor/_cli-config.desired.json
+
+# Claude Code: runtime state, caches, and session transcripts.
+# Only settings.json, CLAUDE.md, skills/ symlinks, and the marketplace list are tracked.
+.claude/backups
+.claude/cache
+.claude/daemon
+.claude/daemon.lock
+.claude/daemon.log
+.claude/daemon.status.json
+.claude/file-history
+.claude/history.jsonl
+.claude/jobs
+.claude/paste-cache
+.claude/plugins/marketplaces
+.claude/projects
+.claude/session-env
+.claude/sessions
+.claude/shell-snapshots
+.claude/.last-cleanup

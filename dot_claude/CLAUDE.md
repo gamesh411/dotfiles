@@ -55,7 +55,7 @@ If you see one, even if it is not caused by what you are working on right now, s
 
 ## Open Brain
 
-You have MCP tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_capture`.
+You have MCP tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_capture`, `brain_revise`, `brain_forget`.
 
 ### When to search
 
@@ -71,6 +71,16 @@ Policy is the **same across harnesses** (Cursor, Kiro, etc.).
 - **Fully autonomous unattended runs** (no human in the loop, e.g. gnhf): you may checkpoint without offering. Budget ~2-5 durable captures per substantial run; quality over quantity.
 
 Always include **project context** in the capture body, and set `source` / provenance so bot-created entries can later be identified and tied to the project or session that produced them.
+
+### When to correct instead of capture
+
+If a retrieved thought is **wrong, stale, or misleading**, do not capture a second thought that argues with it - search will keep returning both and the reader has to notice the contradiction.
+
+- **Wrong or outdated wording** → `brain_revise` with the full corrected text. The old version is retired but stays recoverable.
+- **Should never have been stored, or no longer true at all** → `brain_forget`. Soft by default; pass `hard: true` only for secrets or genuine junk.
+- **Still true, but only in a narrower situation than it reads** → revise it to state that scope, rather than leaving a broad claim standing.
+
+Always ask before revising or forgetting, and quote the thought you mean so the user can see what changes. Never guess an id - take it from `brain_search` / `brain_recent`.
 
 ### Never capture
 

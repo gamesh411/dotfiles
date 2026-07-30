@@ -6,6 +6,8 @@ inclusion: always
 
 Same capture policy as other harnesses (Cursor, etc.) - not a Kiro-only silent mode.
 
+Tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_capture`, `brain_revise`, `brain_forget`.
+
 ## When to search
 
 If uncertain about prior work on the current project/topic:
@@ -28,6 +30,16 @@ Typical durable moments (interactive or unattended):
 6. Session/run end - short state summary if something durable changed
 
 Always include **project context** in the capture body, and set `source` / provenance so bot-created entries can later be identified and tied to the project or session that produced them.
+
+## When to correct instead of capture
+
+If a retrieved thought is **wrong, stale, or misleading**, do not capture a second thought that argues with it - search keeps returning both and the reader has to notice the contradiction.
+
+- Wrong or outdated wording → `brain_revise` with the full corrected text. The old version is retired but stays recoverable.
+- Should never have been stored, or no longer true at all → `brain_forget`. Soft by default; `hard: true` only for secrets or genuine junk.
+- Still true, but only in a narrower situation than it reads → revise it to state that scope.
+
+Always ask before revising or forgetting, and quote the thought you mean. Never guess an id - take it from `brain_search` / `brain_recent`.
 
 ## When NOT to capture
 

@@ -13,8 +13,9 @@
 
 # Claude Code: runtime state, caches, and session transcripts.
 # Only settings.json, CLAUDE.md, and skills/ symlinks are tracked.
-# known_marketplaces.json carries a lastUpdated stamp rewritten on every refresh,
-# so tracking it means permanent drift; re-register marketplaces via /plugin instead.
+# known_marketplaces.json looked like config but is not: it stores an absolute
+# installLocation and a lastUpdated stamp that Claude Code rewrites itself, so a
+# tracked copy carries one machine's paths onto every other.
 .claude/backups
 .claude/cache
 .claude/daemon
@@ -25,7 +26,12 @@
 .claude/history.jsonl
 .claude/jobs
 .claude/paste-cache
+<<<<<<< HEAD
 .claude/plugins
+=======
+.claude/plugins/known_marketplaces.json
+.claude/plugins/marketplaces
+>>>>>>> b7f4c52 (Stop tracking known_marketplaces.json)
 .claude/projects
 .claude/session-env
 .claude/sessions

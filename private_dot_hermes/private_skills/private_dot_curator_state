@@ -1,9 +1,0 @@
-{
-  "last_report_path": "/Users/efulop/.hermes/logs/curator/20260722-102348",
-  "last_run_at": "2026-07-22T10:23:48.350688+00:00",
-  "last_run_duration_seconds": 0.186937,
-  "last_run_summary": "auto: no changes; llm: skipped (consolidation off)",
-  "last_run_summary_shown_at": "2026-07-01T08:16:47.526896+00:00",
-  "paused": false,
-  "run_count": 3
-}

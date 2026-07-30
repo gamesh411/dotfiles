@@ -5,6 +5,12 @@
 .config/nvim/.neoconf.json
 .cursor/_cli-config.desired.json
 
+# Machine-local scheduler and tooling state, not config.
+# Both rewrite themselves on every run, and applying a stale copy on another
+# machine would rewind its schedule (see agent/curator.py interval_hours).
+.agents/.skill-lock.json
+.hermes/skills/.curator_state
+
 # Claude Code: runtime state, caches, and session transcripts.
 # Only settings.json, CLAUDE.md, skills/ symlinks, and the marketplace list are tracked.
 .claude/backups

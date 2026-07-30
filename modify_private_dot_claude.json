@@ -24,5 +24,6 @@ current = json.loads(raw) if raw.strip() else {}
 
 current["mcpServers"] = {**current.get("mcpServers", {}), **DESIRED_MCP_SERVERS}
 
+# No trailing newline: Claude Code writes this file without one, so emitting it
+# here would leave chezmoi permanently reporting drift.
 json.dump(current, sys.stdout, indent=2, ensure_ascii=False)
-sys.stdout.write("\n")

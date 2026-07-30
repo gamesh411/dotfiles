@@ -12,7 +12,9 @@
 .hermes/skills/.curator_state
 
 # Claude Code: runtime state, caches, and session transcripts.
-# Only settings.json, CLAUDE.md, skills/ symlinks, and the marketplace list are tracked.
+# Only settings.json, CLAUDE.md, and skills/ symlinks are tracked.
+# known_marketplaces.json carries a lastUpdated stamp rewritten on every refresh,
+# so tracking it means permanent drift; re-register marketplaces via /plugin instead.
 .claude/backups
 .claude/cache
 .claude/daemon
@@ -23,7 +25,7 @@
 .claude/history.jsonl
 .claude/jobs
 .claude/paste-cache
-.claude/plugins/marketplaces
+.claude/plugins
 .claude/projects
 .claude/session-env
 .claude/sessions

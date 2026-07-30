@@ -34,6 +34,7 @@
       }
     ]
   },
+  "effortLevel": "high",
   "theme": "auto",
   "terminalProgressBarEnabled": true
 }

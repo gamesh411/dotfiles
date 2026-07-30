@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Assert tracked MCP servers in ~/.claude.json without dropping session state.
+
+Claude Code has no settings.json key for MCP servers - user-scope definitions
+live only in ~/.claude.json, alongside mutable state (startup counts, per-project
+history, onboarding flags). So this merges rather than replaces, mirroring
+modify_cli-config.json for Cursor.
+"""
+import json
+import sys
+
+DESIRED_MCP_SERVERS = {
+    "open-brain": {
+        "command": "npx",
+        "args": [
+            "tsx",
+            "/Users/efulop/projects/ai-brain/mcp/src/index.ts",
+        ],
+    },
+}
+
+raw = sys.stdin.read()
+current = json.loads(raw) if raw.strip() else {}
+
+current["mcpServers"] = {**current.get("mcpServers", {}), **DESIRED_MCP_SERVERS}
+
+json.dump(current, sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")

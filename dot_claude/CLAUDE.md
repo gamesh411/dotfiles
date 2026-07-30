@@ -1,8 +1,80 @@
 # Global Guidelines
 
-Shared rules live with the Cursor rule files so every harness reads the same source.
+## General Guidelines
 
-@~/.cursor/rules/general-guidelines.mdc
+These apply to every agent session.
+
+### Punctuation
+
+Never use the em dash "-".
+Use a plain dash "-" instead.
+
+### Commit messages
+
+When writing commit messages, never auto-add your agent name as co-author.
+Strive to be terse and human-like in phrasing.
+
+### File management
+
+Never manually modify `CHANGELOG.md` files or any files that are marked as auto-generated.
+
+### Sentence-per-line documents
+
+When writing or substantially editing long prose documents where a source line break is not necessarily a line break in the rendered output (Markdown, LaTeX, and similar), put each full sentence on its own line.
+Preserve normal document structure, but avoid wrapping multiple sentences onto one physical line.
+This keeps version-control diffs easier to read.
+
+### Project formatting
+
+If the project has specific formatting requirements, meet them before committing.
+
+### Comments
+
+Prefer comments that explain why, not how.
+If the code already describes everything it needs to describe, do not add a comment.
+
+### Technical decisions
+
+When making technical decisions, do not give much weight to development cost.
+Prefer quality, simplicity, robustness, scalability, and long-term maintainability.
+
+### Bug fixing
+
+When doing bug fixes, always start by reproducing the bug in an E2E setting as closely aligned with how an end user would experience it.
+This makes sure you find the real problem so your fix will actually solve it.
+
+### UI/UX quality
+
+When end-to-end testing a product, be picky about the UI you see and be obsessed with pixel perfection.
+If something clearly looks off, even if it is not directly related to what you are doing, try to get it fixed along the way.
+
+### Engineering excellence
+
+Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
+If you see one, even if it is not caused by what you are working on right now, still get it fixed.
+
+## Open Brain
+
+You have MCP tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_capture`.
+
+### When to search
+
+Before non-trivial answers that depend on **this user's** preferences, constraints, past decisions, people, or project context, call `brain_search` (add `thought_type` / person / topic filters when helpful).
+
+Skip search for pure general knowledge, one-off trivia, or when the user already pasted full context.
+
+### When to capture
+
+Policy is the **same across harnesses** (Cursor, Kiro, etc.).
+
+- **Interactive sessions:** after a clear decision, preference, constraint, or "what we tried" outcome, **offer** `brain_capture` (do not silently spam). Use skill `open-brain-capture` templates when phrasing helps.
+- **Fully autonomous unattended runs** (no human in the loop, e.g. gnhf): you may checkpoint without offering. Budget ~2-5 durable captures per substantial run; quality over quantity.
+
+Always include **project context** in the capture body, and set `source` / provenance so bot-created entries can later be identified and tied to the project or session that produced them.
+
+### Never capture
+
+Secrets, API keys, passwords, OTP codes, private keys, connection strings with credentials.
 
 ## Coding excellence
 

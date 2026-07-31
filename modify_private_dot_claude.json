@@ -7,15 +7,22 @@ history, onboarding flags). So this merges rather than replaces, mirroring
 modify_cli-config.json for Cursor.
 """
 import json
+import os
 import sys
 
+# Expanded here rather than left as a literal "~": these args are passed
+# straight to execve with no shell, so a tilde would resolve to a path like
+# $CWD/~/projects and the server would fail to start on every platform.
 DESIRED_MCP_SERVERS = {
     "open-brain": {
+        # Claude Code writes this key itself; omitting it leaves permanent drift.
+        "type": "stdio",
         "command": "npx",
         "args": [
             "tsx",
-            "/Users/efulop/projects/ai-brain/mcp/src/index.ts",
+            os.path.expanduser("~/projects/ai-brain/mcp/src/index.ts"),
         ],
+        "env": {"OPEN_BRAIN_CLIENT": "claude"},
     },
 }
 

@@ -6,6 +6,7 @@ conform.setup({
     cpp = { "clang-format" },
     python = { "darker" },
     lua = { "stylua" },
+    odin = { "ols" },
   },
 })
 

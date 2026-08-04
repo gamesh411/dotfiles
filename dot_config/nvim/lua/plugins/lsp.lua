@@ -27,7 +27,14 @@ vim.lsp.config("lua_ls", {
   },
 })
 
-vim.lsp.enable({ "clangd", "basedpyright", "lua_ls" })
+vim.lsp.config("ols", {
+  cmd = { "ols" },
+  filetypes = { "odin" },
+  root_markers = { "ols.json", ".git" },
+  capabilities = capabilities,
+})
+
+vim.lsp.enable({ "clangd", "basedpyright", "lua_ls", "ols" })
 
 -- LSP keymaps on attach
 vim.api.nvim_create_autocmd("LspAttach", {

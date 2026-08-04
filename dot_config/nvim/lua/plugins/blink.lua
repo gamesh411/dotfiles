@@ -1,16 +1,11 @@
 require("blink.cmp").setup({
-  keymap = { preset = "super-tab" },
+  keymap = { preset = "enter" },
   sources = {
-    default = { "lsp", "supermaven", "path", "buffer" },
+    default = { "lsp", "path", "buffer" },
     per_filetype = {
-      markdown = { "lsp", "obsidian", "supermaven", "path", "buffer" },
+      markdown = { "lsp", "obsidian", "path", "buffer" },
     },
     providers = {
-      supermaven = {
-        name = "supermaven",
-        module = "blink-cmp-supermaven",
-        async = true,
-      },
       obsidian = {
         name = "obsidian",
         module = "blink.compat.source",

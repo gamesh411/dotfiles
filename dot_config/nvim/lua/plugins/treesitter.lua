@@ -1,7 +1,7 @@
 require("nvim-treesitter").setup({})
 
 -- Install parsers if missing
-local parsers = { "c", "cpp", "python", "lua", "vim", "vimdoc", "query", "markdown", "markdown_inline", "bash" }
+local parsers = { "c", "cpp", "python", "lua", "vim", "vimdoc", "query", "markdown", "markdown_inline", "bash", "odin" }
 local installed = require("nvim-treesitter").get_installed()
 local installed_set = {}
 for _, p in ipairs(installed) do

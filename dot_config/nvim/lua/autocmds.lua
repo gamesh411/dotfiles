@@ -1,6 +1,23 @@
 local autocmd = vim.api.nvim_create_autocmd
 local augroup = vim.api.nvim_create_augroup
 
+-- auto-reload files changed on disk
+vim.o.autoread = true
+autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
+  group = augroup("AutoReload", {}),
+  callback = function()
+    if vim.fn.getcmdwintype() == "" then
+      vim.cmd("checktime")
+    end
+  end,
+})
+autocmd("FileChangedShellPost", {
+  group = augroup("AutoReloadNotify", {}),
+  callback = function()
+    vim.notify("File changed on disk. Reloaded.", vim.log.levels.INFO)
+  end,
+})
+
 -- highlight on yank (works in both hosts)
 autocmd("TextYankPost", {
   group = augroup("YankHighlight", {}),

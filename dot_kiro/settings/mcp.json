@@ -17,7 +17,10 @@
       "args": [
         "tsx",
         "/Users/efulop/projects/ai-brain/mcp/src/index.ts"
-      ]
+      ],
+      "env": {
+        "OPEN_BRAIN_CLIENT": "kiro"
+      }
     }
   }
 }

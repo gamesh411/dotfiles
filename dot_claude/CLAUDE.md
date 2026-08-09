@@ -59,18 +59,57 @@ You have MCP tools: `brain_search`, `brain_recent`, `brain_stats`, `brain_captur
 
 ### When to search
 
-Before non-trivial answers that depend on **this user's** preferences, constraints, past decisions, people, or project context, call `brain_search` (add `thought_type` / person / topic filters when helpful).
+Search **before** you form a plan on an unfamiliar project, not after you get stuck.
+A brain read once the assumptions are already made cannot change them, which is the whole point of having one.
+
+Call `brain_search` before any non-trivial answer that depends on **this user's** preferences, constraints, past decisions, people, or project context (add `thought_type` / person / topic filters when helpful).
+Search returns nothing when nothing is relevant, so an empty result is information rather than a failure.
 
 Skip search for pure general knowledge, one-off trivia, or when the user already pasted full context.
 
 ### When to capture
 
-Policy is the **same across harnesses** (Cursor, Kiro, etc.).
+**Capture without asking.** Do not offer, do not propose, do not interrupt the work to negotiate a memory.
+Three properties make a silent write safe, and they are the reason this policy changed:
 
-- **Interactive sessions:** after a clear decision, preference, constraint, or "what we tried" outcome, **offer** `brain_capture` (do not silently spam). Use skill `open-brain-capture` templates when phrasing helps.
-- **Fully autonomous unattended runs** (no human in the loop, e.g. gnhf): you may checkpoint without offering. Budget ~2-5 durable captures per substantial run; quality over quantity.
+- `brain_capture` refuses a near-duplicate and returns the id it collided with, so a repeated thought cannot accumulate.
+- `trust` records how the thought was produced, so anything written without review stays filterable.
+- `brain_forget` is a soft tombstone, so a bad capture costs one call to undo.
 
-Always include **project context** in the capture body, and set `source` / provenance so bot-created entries can later be identified and tied to the project or session that produced them.
+Capture in the same turn the moment happens, not in a summary at the end:
+
+1. **Decision** - a choice made, with what was rejected and why. A decision without the rejected alternative is not worth storing.
+2. **Dead end** - something tried and abandoned, and how it failed. Nobody writes these by hand, because at the moment you abandon something you have no appetite to write it up. They are the highest-value kind.
+3. **Durable fact** - a non-obvious property of a system, tool, or environment that cost effort to discover: a trap, a silent failure mode, an ordering constraint. Not documentation; the thing the documentation failed to tell you.
+4. **Preference or constraint** the user states about how they want to work.
+
+Do not capture what the repository already records: file layout, what a function does, what a commit changed, anything in the project's own docs or `CLAUDE.md`/`AGENTS.md`.
+If a fresh agent could recover it by reading the code, it is not a memory.
+
+Never pad.
+Most sessions produce zero or one durable memory, and zero is a correct answer.
+
+Always name the project in the capture body, and set `source` so the entry can be traced back to the session that produced it.
+
+Subagents capture too, under the same rules.
+A subagent that found the trap is the one that should write it down; reporting it upward and hoping the caller stores it loses most of them.
+
+### Trust and validity
+
+Set `trust` honestly: `vouched` only when the user approved this exact wording, `agent_inferred` when produced with no human in the loop, `agent_asserted` (the default) for everything else.
+It is a filter, never a ranking signal, so an inflated tier hides a weak thought rather than promoting it.
+
+If the thought was already true before this session, set `valid_from` to when it became true.
+Leave it alone otherwise.
+
+### When capture is refused
+
+`brain_capture` refuses a thought near-identical to an existing one and returns the id it collided with.
+That is the system enforcing "correct, do not argue" - revise the existing thought instead.
+Only pass `force` when the two really are separate memories that happen to read alike.
+
+A successful capture may also return `neighbours`.
+Those are related, not duplicates; check whether one of them should have been revised before you move on.
 
 ### When to correct instead of capture
 
@@ -80,7 +119,10 @@ If a retrieved thought is **wrong, stale, or misleading**, do not capture a seco
 - **Should never have been stored, or no longer true at all** → `brain_forget`. Soft by default; pass `hard: true` only for secrets or genuine junk.
 - **Still true, but only in a narrower situation than it reads** → revise it to state that scope, rather than leaving a broad claim standing.
 
-Always ask before revising or forgetting, and quote the thought you mean so the user can see what changes. Never guess an id - take it from `brain_search` / `brain_recent`.
+Capture is silent, but correction is not.
+Always ask before revising or forgetting, and quote the thought you mean so the user can see what changes.
+Adding a thought is additive and reversible; retiring one destroys the version that was there.
+Never guess an id - take it from `brain_search` / `brain_recent`.
 
 ### Never capture
 

@@ -4,11 +4,19 @@
 Claude Code has no settings.json key for MCP servers - user-scope definitions
 live only in ~/.claude.json, alongside mutable state (startup counts, per-project
 history, onboarding flags). So this merges rather than replaces, mirroring
-modify_cli-config.json for Cursor.
+modify_cli-config.json.py for Cursor.
+
+The .py extension is what picks the interpreter on Windows, which has no shebang
+support; chezmoi strips it from the target name on every platform.
 """
 import json
 import os
 import sys
+
+# Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n".
+# Claude Code writes this file as UTF-8 with LF, so without this every apply
+# would rewrite all ~900 lines and chezmoi would report drift forever.
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 # Expanded here rather than left as a literal "~": these args are passed
 # straight to execve with no shell, so a tilde would resolve to a path like
@@ -20,7 +28,7 @@ DESIRED_MCP_SERVERS = {
         "command": "npx",
         "args": [
             "tsx",
-            os.path.expanduser("~/projects/ai-brain/mcp/src/index.ts"),
+            os.path.normpath(os.path.expanduser("~/projects/ai-brain/mcp/src/index.ts")),
         ],
         "env": {"OPEN_BRAIN_CLIENT": "claude"},
     },

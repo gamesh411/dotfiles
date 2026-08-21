@@ -13,3 +13,9 @@
 [credential "https://gist.github.com"]
 	helper = 
 	helper = !gh auth git-credential
+{{ if and (eq .chezmoi.os "windows") (lookPath "code") -}}
+{{/* Windows has no EDITOR convention, so git falls back to vi and hangs in
+     terminals that have none. Keep the VS Code binding this machine already had. */ -}}
+[core]
+	editor = code --wait
+{{ end -}}

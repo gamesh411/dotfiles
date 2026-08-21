@@ -1,0 +1,10 @@
+# chezmoi copies these files verbatim into $HOME, so the checkout's line endings
+# become the dotfiles' line endings. Windows defaults (core.autocrlf=true) would
+# hand CRLF to every bash script and leave every app that rewrites its own config
+# with LF - Claude Code, Cursor - in permanent conflict with `chezmoi apply`.
+# Force LF everywhere so a Windows checkout matches Linux and macOS byte for byte.
+* text=auto eol=lf
+
+# Never touch the curator's skill archives.
+*.gz binary
+*.tar binary

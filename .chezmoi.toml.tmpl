@@ -1,0 +1,28 @@
+{{- /* Windows has no shebang: chezmoi picks a script's interpreter from the
+       file extension alone, so the `#!/usr/bin/env ...` lines that carry the
+       run_/modify_ scripts on Linux and macOS are ignored here. Without these
+       mappings chezmoi execs the script directly and Windows rejects it with
+       "%1 is not a valid Win32 application".
+
+       `python3` on Windows is usually the Microsoft Store App Execution Alias,
+       which is not Python and exits 9009, so .py cannot use chezmoi's python3
+       default. And .sh wants Git for Windows' bash rather than whichever bash
+       is first on PATH: the run_ scripts use readlink -f, mv and ln -s, which
+       busybox-style shims (w64devkit) do not implement. */ -}}
+{{- if eq .chezmoi.os "windows" -}}
+{{- $python := "python" -}}
+{{- if not (lookPath "python") -}}
+{{- $python = "py" -}}
+{{- end -}}
+{{- $bash := "bash" -}}
+{{- range list "C:/Program Files/Git/bin/bash.exe" "C:/Program Files (x86)/Git/bin/bash.exe" -}}
+{{- if stat . -}}
+{{- $bash = . -}}
+{{- end -}}
+{{- end -}}
+[interpreters.py]
+    command = {{ $python | quote }}
+
+[interpreters.sh]
+    command = {{ $bash | quote }}
+{{ end -}}

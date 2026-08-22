@@ -1,5 +1,5 @@
 {
-  "model": "claude-opus-5",
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -36,5 +36,6 @@
   },
   "effortLevel": "high",
   "theme": "auto",
-  "terminalProgressBarEnabled": true
+  "terminalProgressBarEnabled": true,
+  "agentPushNotifEnabled": true
 }

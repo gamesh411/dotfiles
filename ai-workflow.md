@@ -71,12 +71,14 @@ Everything below auto fails at creative tasks.
 
 ---
 
-## Tool Versions (installed 2026-07-04)
+## Tool Versions (updated 2026-08-22)
+
+Treehouse and no-mistakes now self-heal on every `chezmoi apply` via `run_after_install-agentic-tools.sh` (official installers on macOS/Linux, release zips into `~/.local/bin` on Windows).
 
 | Tool | Version | Install/Update |
 |------|---------|---------------|
-| treehouse | v2.0.0 | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` |
-| no-mistakes | v1.31.2 | `curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh \| sh` |
+| treehouse | v2.3.0 | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` |
+| no-mistakes | v1.53.0 | `curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh \| sh` |
 | gnhf | 0.1.41 | `npm install -g gnhf` |
 | firstmate | repo clone | `cd ~/firstmate && git pull` |
 | gh-axi | npm | `npm install -g gh-axi` |

@@ -167,3 +167,33 @@ A change that has not been observed working is not finished, it is only written.
 State plainly what you did, what you verified, and what you did not.
 If tests fail, show the output.
 If you skipped a step, guessed at intent, or left something incomplete, say so instead of letting a confident summary paper over it.
+
+## Agentic workflow
+
+The standard loop for non-trivial features; each phase has exactly one owner.
+Skip the ceremony for trivial fixes; a one-file change does not need tickets.
+
+### Plan (human judgment lives here)
+
+Sharpen the idea with `/grill-with-docs` before writing code; on unfamiliar or legacy code, run `/why` first to recover the design history.
+Render substantial plans or option comparisons as Lavish HTML artifacts (`lavish-axi`) so review happens visually, by annotation, rather than by reading walls of markdown.
+
+### Decompose
+
+`/to-spec` then `/to-tickets`: tracer-bullet vertical slices with explicit blocking edges.
+Keep grilling through ticketing in one unbroken context window; each ticket is then implemented in a fresh one.
+
+### Implement
+
+`/implement` per ticket; it drives `/tdd` and `/code-review` internally.
+Parallel tickets each get an isolated treehouse worktree (`treehouse` drops into a pooled worktree subshell, `exit` returns it).
+Unattended or multi-hour runs keep a decision log per the `show-me-your-work` skill.
+
+### Ship
+
+Push through the no-mistakes gate (`git push no-mistakes <branch>`) rather than straight to the remote.
+Once a PR is open, `/babysit` shepherds it: conflicts, failing CI, and mechanical review comments; judgment calls escalate to the human.
+
+### Feedback
+
+When an agent errs, record the correction in memory (project CLAUDE.md, AGENTS.md, or Open Brain) instead of silently redoing the work by hand.

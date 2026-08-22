@@ -11,6 +11,7 @@ support; chezmoi strips it from the target name on every platform.
 """
 import json
 import os
+import re
 import sys
 
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n".
@@ -39,6 +40,15 @@ current = json.loads(raw) if raw.strip() else {}
 
 current["mcpServers"] = {**current.get("mcpServers", {}), **DESIRED_MCP_SERVERS}
 
+out = json.dumps(current, indent=2, ensure_ascii=False)
+
+# Pasted text in session history can carry lone surrogates (half of a mangled
+# emoji). Node's JSON.stringify escapes them as \udc9d; json.loads turns that
+# back into a real surrogate, which a strict UTF-8 stdout refuses to encode.
+# Re-escape them the way Node writes them, so the output round-trips instead
+# of aborting the whole apply.
+out = re.sub(r"[\ud800-\udfff]", lambda m: "\\u%04x" % ord(m.group()), out)
+
 # No trailing newline: Claude Code writes this file without one, so emitting it
 # here would leave chezmoi permanently reporting drift.
-json.dump(current, sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write(out)

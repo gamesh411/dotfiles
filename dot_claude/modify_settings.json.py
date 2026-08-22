@@ -12,10 +12,17 @@ So the split is by who owns the key:
     and a hand-edit is drift worth reverting.
   - Everything else is either session state or a preference the user changes
     from inside the app, so it is only seeded when absent.
+
+The .py extension is what picks the interpreter on Windows, which has no shebang
+support; chezmoi strips it from the target name on every platform.
 """
 import json
 import os
 import sys
+
+# Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n";
+# Claude Code writes this file as UTF-8 with LF. See modify_private_dot_claude.json.py.
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 REPO = os.path.expanduser("~/projects/ai-brain")
 

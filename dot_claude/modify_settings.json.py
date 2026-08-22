@@ -24,7 +24,33 @@ import sys
 # Claude Code writes this file as UTF-8 with LF. See modify_private_dot_claude.json.py.
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
-REPO = os.path.expanduser("~/projects/ai-brain")
+REPO = os.path.expanduser("~/projects/ai-brain").replace("\\", "/")
+
+
+def hook_command(script):
+    """Build the command Claude Code runs for an Open Brain hook.
+
+    On Windows hooks run through cmd.exe, which cannot execute a .sh file, so
+    the command has to name Git Bash explicitly. Same reasoning as the
+    interpreter mappings in .chezmoi.toml.tmpl: the scripts want Git for
+    Windows' bash, not whichever bash-alike is first on PATH.
+    """
+    path = f"{REPO}/hooks/{script}"
+    if sys.platform != "win32":
+        return path
+    bash = next(
+        (
+            candidate
+            for candidate in (
+                "C:/Program Files/Git/bin/bash.exe",
+                "C:/Program Files (x86)/Git/bin/bash.exe",
+            )
+            if os.path.exists(candidate)
+        ),
+        "bash",
+    )
+    return f'"{bash}" "{path}"'
+
 
 # Open Brain's two hooks. Recall runs on genuine session starts only: after a
 # compact the summary already carries the context, and re-injecting it there
@@ -36,7 +62,7 @@ OPEN_BRAIN_HOOKS = {
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"{REPO}/hooks/session-start-recall.sh",
+                    "command": hook_command("session-start-recall.sh"),
                     "timeout": 15,
                 }
             ],
@@ -48,7 +74,7 @@ OPEN_BRAIN_HOOKS = {
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"{REPO}/hooks/session-end-mine.sh",
+                    "command": hook_command("session-end-mine.sh"),
                     "timeout": 10,
                 }
             ],

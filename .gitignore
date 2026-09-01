@@ -1,0 +1,4 @@
+# NFS leaves .nfsXXXX turds when a file is deleted while still held open.
+# They are transient and machine-local, never config.
+.nfs*
+**/.nfs*

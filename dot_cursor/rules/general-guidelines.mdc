@@ -55,3 +55,9 @@ If something clearly looks off, even if it is not directly related to what you a
 
 Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
 If you see one, even if it is not caused by what you are working on right now, still get it fixed.
+
+<!-- shared-delegation:start -->
+## Delegation
+
+For tasks with separable routine work, model selection, or cross-CLI workers, read `~/.agents/DELEGATION.md` and follow the shared delegation policy. Keep design and final judgment with the capable lead; offload bounded work when it saves effort, after checking live capacity with `~/.local/bin/agent-capacity --json`. When the assignment starts with `DELEGATED_WORKER` or the environment has `AGENT_DELEGATION_DEPTH=1`, execute only that assignment without further delegation.
+<!-- shared-delegation:end -->

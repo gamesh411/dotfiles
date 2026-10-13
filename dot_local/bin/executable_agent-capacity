@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+"""Read native agent status/catalogs without submitting prompts or logging auth.
+
+Uses only Python's standard library. Account identifiers, credentials, raw CLI
+output and RPC error text never enter the result. A partial/unknown result exits
+zero deliberately; callers must inspect status fields. No quota is inferred
+from login state, elapsed reset timestamps, plan names or model catalog entries.
+"""
+
+import argparse
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import json
+import math
+import os
+from pathlib import Path
+import re
+import selectors
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+VERSION = "2.0.0"
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+MAX_OUTPUT = 4 * 1024 * 1024
+ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/\[\],=+\-]{0,199}\Z")
+
+
+class ProbeError(Exception):
+    """Only fixed, non-sensitive codes are exposed to callers."""
+
+    def __init__(self, code, rpc_code=None):
+        self.code = code
+        self.rpc_code = rpc_code if type(rpc_code) is int else None
+        super().__init__(code)
+
+
+def utc_now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def number(value):
+    return value if type(value) in (int, float) and math.isfinite(value) else None
+
+
+def boolean(value):
+    return value if type(value) is bool else None
+
+
+def identifier(value):
+    return value if isinstance(value, str) and IDENTIFIER.fullmatch(value) else None
+
+
+def timestamp(value):
+    if type(value) is not int:
+        return None, None
+    try:
+        formatted = datetime.fromtimestamp(value, timezone.utc).isoformat().replace("+00:00", "Z")
+    except (OverflowError, OSError, ValueError):
+        return None, None
+    return value, formatted
+
+
+def decimal_string(value):
+    return value if isinstance(value, str) and re.fullmatch(r"-?\d+(?:\.\d+)?", value) else None
+
+
+def normalize_window(raw):
+    if not isinstance(raw, dict):
+        return None
+    used = number(raw.get("usedPercent"))
+    epoch, reset = timestamp(raw.get("resetsAt"))
+    duration = number(raw.get("windowDurationMins"))
+    return {
+        "used_percent": used,
+        "remaining_percent": None if used is None else min(100, max(0, 100 - used)),
+        "window_minutes": duration if duration is not None and duration > 0 else None,
+        "resets_at_epoch": epoch,
+        "resets_at_utc": reset,
+    }
+
+
+def normalize_bucket(raw, key=None):
+    raw = raw if isinstance(raw, dict) else {}
+    credit = raw.get("credits")
+    individual = raw.get("individualLimit")
+    credits = None
+    if isinstance(credit, dict):
+        credits = {
+            "has_credits": boolean(credit.get("hasCredits")),
+            "unlimited": boolean(credit.get("unlimited")),
+            "balance": decimal_string(credit.get("balance")),
+        }
+    individual_limit = None
+    if isinstance(individual, dict):
+        remaining = number(individual.get("remainingPercent"))
+        epoch, reset = timestamp(individual.get("resetsAt"))
+        individual_limit = {
+            "limit": decimal_string(individual.get("limit")),
+            "used": decimal_string(individual.get("used")),
+            "remaining_percent": None if remaining is None else min(100, max(0, remaining)),
+            "resets_at_epoch": epoch,
+            "resets_at_utc": reset,
+        }
+    return {
+        "limit_id": identifier(key) or identifier(raw.get("limitId")),
+        "normal_model_slug": identifier(raw.get("normalModelSlug")),
+        "primary": normalize_window(raw.get("primary")),
+        "secondary": normalize_window(raw.get("secondary")),
+        "spend_control_reached": boolean(raw.get("spendControlReached")),
+        "rate_limit_reached_type": identifier(raw.get("rateLimitReachedType")),
+        "credits": credits,
+        "individual_limit": individual_limit,
+    }
+
+
+def normalize_quota(raw):
+    if not isinstance(raw, dict):
+        raise ProbeError("invalid_response")
+    by_limit = raw.get("rateLimitsByLimitId")
+    if isinstance(by_limit, dict):
+        buckets = [normalize_bucket(value, key) for key, value in by_limit.items()]
+        view = "rateLimitsByLimitId"
+    elif isinstance(raw.get("rateLimits"), dict):
+        buckets = [normalize_bucket(raw["rateLimits"])]
+        view = "rateLimits"
+    else:
+        buckets, view = [], None
+    reset_credits = raw.get("rateLimitResetCredits")
+    count = number(reset_credits.get("availableCount")) if isinstance(reset_credits, dict) else None
+    known = any(
+        any(bucket.get(window) and bucket[window]["used_percent"] is not None for window in ("primary", "secondary"))
+        or (bucket["credits"] or {}).get("balance") is not None
+        or (bucket["credits"] or {}).get("unlimited") is True
+        or (bucket["individual_limit"] or {}).get("remaining_percent") is not None
+        for bucket in buckets
+    )
+    return {
+        "status": "ok" if known else "unknown",
+        "source": "codex app-server account/rateLimits/read",
+        "view": view,
+        "ordinary_usage_allowed": boolean(raw.get("ordinaryUsageAllowed")),
+        "available_reset_credits": count if count is not None and count >= 0 else None,
+        "buckets": buckets,
+    }
+
+
+def normalize_models(raw):
+    if not isinstance(raw, dict) or not isinstance(raw.get("data"), list):
+        raise ProbeError("invalid_response")
+    models = []
+    for model in raw["data"]:
+        if not isinstance(model, dict):
+            continue
+        model_id, model_slug = identifier(model.get("id")), identifier(model.get("model"))
+        if model_id is None or model_slug is None:
+            continue
+        efforts = model.get("supportedReasoningEfforts")
+        efforts = efforts if isinstance(efforts, list) else []
+        models.append({
+            "id": model_id,
+            "model": model_slug,
+            "default": boolean(model.get("isDefault")),
+            "hidden": boolean(model.get("hidden")),
+            "default_reasoning_effort": identifier(model.get("defaultReasoningEffort")),
+            "reasoning_efforts": [entry["reasoningEffort"] for entry in efforts
+                                  if isinstance(entry, dict) and identifier(entry.get("reasoningEffort"))],
+        })
+    return models
+
+
+def parse_auth(raw, provider):
+    if not isinstance(raw, dict):
+        raise ProbeError("invalid_response")
+    if provider == "claude":
+        logged_in = boolean(raw.get("loggedIn"))
+    else:
+        logged_in = boolean(raw.get("isAuthenticated"))
+    return {
+        "status": "authenticated" if logged_in is True else "unauthenticated" if logged_in is False else "unknown",
+        "source": "claude auth status --json" if provider == "claude" else "cursor-agent status --format json",
+        "network_access_verified": None,
+    }
+
+
+def parse_cli_models(text):
+    """Parse observed native Cursor rows; never copy arbitrary display text."""
+    entries, seen = [], set()
+    for line in ANSI.sub("", text).splitlines():
+        match = re.match(r"^\s*(?:[*>•›]\s*)?([A-Za-z0-9][A-Za-z0-9._:/\[\],=+\-]*)\s+-\s+(.+)$", line)
+        if not match or not identifier(match.group(1)):
+            continue
+        model_id, description = match.groups()
+        if model_id in seen:
+            continue
+        seen.add(model_id)
+        markers = " ".join(re.findall(r"\(([^)]*)\)", description)).lower()
+        entries.append({"id": model_id, "model": model_id,
+                        "current": bool(re.search(r"\bcurrent\b", markers)),
+                        "default": bool(re.search(r"\bdefault\b", markers))})
+    return entries
+
+
+def process_environment():
+    env = os.environ.copy()
+    env.update({"NO_COLOR": "1", "TERM": "dumb", "NO_OPEN_BROWSER": "1",
+                "DISABLE_AUTOUPDATER": "1"})
+    return env
+
+
+def terminate_process_group(proc):
+    """Terminate children even if the parent exits before its descendants."""
+    if os.name == "posix":
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            if proc.poll() is None:
+                proc.terminate()
+        try:
+            proc.wait(timeout=0.2)
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            if proc.poll() is None:
+                proc.kill()
+    elif proc.poll() is None:
+        proc.kill()
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def capture(argv, deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ProbeError("timeout")
+    try:
+        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, env=process_environment(), start_new_session=True)
+    except (OSError, ValueError):
+        raise ProbeError("launch_failed") from None
+    try:
+        output, _ = proc.communicate(timeout=remaining)
+        if len(output) > MAX_OUTPUT:
+            raise ProbeError("output_limit")
+        return proc.returncode, output.decode("utf-8", errors="replace")
+    except subprocess.TimeoutExpired:
+        raise ProbeError("timeout") from None
+    finally:
+        terminate_process_group(proc)
+        if proc.stdout:
+            proc.stdout.close()
+
+
+class AppServer:
+    def __init__(self, argv):
+        try:
+            self.proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                         stderr=subprocess.DEVNULL, env=process_environment(), start_new_session=True)
+        except (OSError, ValueError):
+            raise ProbeError("launch_failed") from None
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(self.proc.stdout, selectors.EVENT_READ)
+        self.buffer = b""
+        self.next_id = 0
+
+    def send(self, method, params=None, notification=False):
+        request = {"method": method, "params": params or {}}
+        if not notification:
+            self.next_id += 1
+            request["id"] = self.next_id
+        try:
+            self.proc.stdin.write((json.dumps(request) + "\n").encode())
+            self.proc.stdin.flush()
+        except (OSError, BrokenPipeError):
+            raise ProbeError("process_exited") from None
+        return request.get("id")
+
+    def receive(self, deadline):
+        while True:
+            if b"\n" in self.buffer:
+                line, self.buffer = self.buffer.split(b"\n", 1)
+                try:
+                    message = json.loads(line)
+                except (ValueError, UnicodeError):
+                    continue
+                if isinstance(message, dict):
+                    return message
+                continue
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self.selector.select(remaining):
+                raise ProbeError("timeout")
+            chunk = os.read(self.proc.stdout.fileno(), 65536)
+            if not chunk:
+                raise ProbeError("process_exited")
+            self.buffer += chunk
+            if len(self.buffer) > MAX_OUTPUT:
+                raise ProbeError("output_limit")
+
+    def close(self):
+        self.selector.close()
+        terminate_process_group(self.proc)
+        for stream in (self.proc.stdin, self.proc.stdout):
+            if stream:
+                stream.close()
+
+
+def add_error(result, operation, error):
+    row = {"operation": operation, "code": error.code}
+    if error.rpc_code is not None:
+        row["rpc_code"] = error.rpc_code
+    result["errors"].append(row)
+
+
+def base_result(provider):
+    return {
+        "provider": provider,
+        "status": "unknown",
+        "checked_at": utc_now(),
+        "auth": {"status": "unknown", "source": None, "network_access_verified": None},
+        "quota": {"status": "unknown", "source": None, "buckets": [], "ordinary_usage_allowed": None},
+        "models": {"status": "unknown", "source": None, "entries": [], "inference_access_verified": None},
+        "notes": [], "errors": [],
+    }
+
+
+def probe_codex(timeout, binary=None):
+    result = base_result("codex")
+    binary = binary or shutil.which("codex")
+    if not binary:
+        result["status"] = "unavailable"
+        add_error(result, "executable", ProbeError("not_found"))
+        return result
+    deadline, server = time.monotonic() + timeout, None
+    result["models"]["source"] = "codex app-server model/list"
+    result["notes"].append("Model catalog may be bundled or cached; picker listing does not prove inference entitlement.")
+    result["notes"].append("Quota is account-wide, not a balance reserved for this task. Null means unknown.")
+    try:
+        server = AppServer([binary, "app-server", "--listen", "stdio://"])
+        init_id = server.send("initialize", {
+            "clientInfo": {"name": "agent_capacity", "version": VERSION},
+            "capabilities": {"explicitGatewayOauth": True},
+        })
+        while True:
+            msg = server.receive(deadline)
+            if msg.get("id") == init_id:
+                if "error" in msg:
+                    raise ProbeError("rpc_error", msg["error"].get("code") if isinstance(msg["error"], dict) else None)
+                if "result" not in msg:
+                    raise ProbeError("invalid_response")
+                break
+        server.send("initialized", notification=True)
+        pending = {
+            server.send("account/rateLimits/read", {"excludeResetCreditDetails": True, "supportsLunaReserve": False}): "quota",
+            server.send("model/list", {"limit": 100, "includeHidden": False}): "models",
+        }
+        cursors, page_count = set(), 0
+        while pending:
+            try:
+                message = server.receive(deadline)
+            except ProbeError as error:
+                for operation in set(pending.values()):
+                    add_error(result, operation, error)
+                    result[operation]["status"] = "partial" if operation == "models" and result[operation]["entries"] else "unknown"
+                break
+            response_id = message.get("id")
+            operation = pending.pop(response_id, None) if type(response_id) is int else None
+            if operation is None:
+                continue
+            try:
+                if "error" in message:
+                    error = message["error"]
+                    raise ProbeError("rpc_error", error.get("code") if isinstance(error, dict) else None)
+                raw = message.get("result")
+                if operation == "quota":
+                    result["quota"] = normalize_quota(raw)
+                else:
+                    result["models"]["entries"].extend(normalize_models(raw))
+                    page_count += 1
+                    cursor = raw.get("nextCursor")
+                    if cursor is not None:
+                        if not isinstance(cursor, str) or cursor in cursors or page_count >= 20:
+                            raise ProbeError("pagination_incomplete")
+                        cursors.add(cursor)
+                        pending[server.send("model/list", {"limit": 100, "includeHidden": False, "cursor": cursor})] = "models"
+                    else:
+                        result["models"]["status"] = "ok"
+            except ProbeError as error:
+                add_error(result, operation, error)
+                result[operation]["status"] = "partial" if operation == "models" and result[operation]["entries"] else "unknown"
+    except ProbeError as error:
+        add_error(result, "app_server", error)
+    finally:
+        if server:
+            server.close()
+    result["status"] = "ok" if result["quota"]["status"] == "ok" and result["models"]["status"] == "ok" else "partial"
+    return result
+
+
+def has_command(help_text, command):
+    return bool(re.search(r"^\s+" + re.escape(command) + r"(?:\s|\[|\|)", help_text, re.M))
+
+
+def probe_cli(provider, timeout, binary=None, runner=capture, quota_probe=None):
+    result = base_result(provider)
+    binary = binary or shutil.which("claude" if provider == "claude" else "cursor-agent")
+    if not binary:
+        result["status"] = "unavailable"
+        add_error(result, "executable", ProbeError("not_found"))
+        return result
+    deadline = time.monotonic() + timeout
+    auth_snapshot = None
+    result["quota"]["reason"] = "not_exposed_by_verified_cli_commands"
+    result["notes"].append("Authentication status does not verify network/model access or remaining quota.")
+    try:
+        code, help_text = runner([binary, "--help"], deadline)
+        if code:
+            raise ProbeError("command_failed")
+        help_text = ANSI.sub("", help_text)
+    except ProbeError as error:
+        add_error(result, "help", error)
+        result["status"] = "partial"
+        return result
+    auth_supported = has_command(help_text, "auth" if provider == "claude" else "status")
+    if auth_supported:
+        args = ["auth", "status", "--json"] if provider == "claude" else ["status", "--format", "json"]
+        try:
+            code, output = runner([binary] + args, deadline)
+            try:
+                raw = json.loads(output)
+            except ValueError:
+                raise ProbeError("command_failed" if code else "invalid_response") from None
+            result["auth"] = parse_auth(raw, provider)
+            auth_snapshot = raw
+            if code and result["auth"]["status"] != "unauthenticated":
+                add_error(result, "auth", ProbeError("command_failed"))
+        except ProbeError as error:
+            add_error(result, "auth", error)
+    else:
+        add_error(result, "auth", ProbeError("command_not_advertised"))
+    # Do not run an unrecognized word as a possible inference prompt.
+    model_args = ["models"] if has_command(help_text, "models") else ["--list-models"] if re.search(r"^\s+--list-models\b", help_text, re.M) else None
+    if model_args:
+        result["models"]["source"] = ("claude" if provider == "claude" else "cursor-agent") + " " + " ".join(model_args)
+        try:
+            code, output = runner([binary] + model_args, deadline)
+            if code:
+                raise ProbeError("command_failed")
+            models = parse_cli_models(output)
+            if not models:
+                raise ProbeError("unrecognized_model_output")
+            result["models"].update({"status": "ok", "entries": models})
+        except ProbeError as error:
+            add_error(result, "models", error)
+    else:
+        result["models"].update({"status": "unsupported", "reason": "no_native_model_listing_advertised"})
+    if quota_probe is not None and result["auth"]["status"] == "authenticated":
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            result["quota"] = quota_probe(provider, binary, remaining, auth_snapshot)
+        else:
+            add_error(result, "quota", ProbeError("timeout"))
+    # Identity from native status is used only to match the quota account in memory.
+    auth_snapshot = None
+    result["status"] = "ok" if result["quota"]["status"] == "ok" and result["models"]["status"] in ("ok", "unsupported") else "partial"
+    return result
+
+
+def probe_usage(provider, binary, timeout, auth_snapshot):
+    if provider == "cursor":
+        from agent_capacity.cursor import fetch_quota
+        observation = fetch_quota(timeout=min(timeout, 10), expected_cli_auth=auth_snapshot)
+    else:
+        from agent_capacity.claude import collect
+        observation = collect(timeout=min(timeout, 60), binary=binary)
+    result = {"status": "ok" if observation.get("quota_status") == "known" else "unknown",
+              "source": observation.get("quota_source"), "buckets": [],
+              "ordinary_usage_allowed": None, "observed_at": observation.get("observed_at"),
+              "windows": observation.get("windows", []),
+              "usage_account_matches_cli": observation.get("usage_account_matches_cli"),
+              "reason": observation.get("reason") or observation.get("error")}
+    for field in ("aggregate", "billing_cycle_start", "auth_source", "retry_after_seconds", "freshness", "native_version"):
+        if field in observation:
+            result[field] = observation[field]
+    return result
+
+
+def human_summary(report):
+    lines = ["Agent capacity at " + report["checked_at"], "Read-only probes; no inference. Unknown quota is not zero."]
+    for result in report["providers"]:
+        lines += ["", result["provider"].upper() + " — " + result["status"],
+                  "  Auth: " + result["auth"]["status"], "  Quota: " + result["quota"]["status"]]
+        allowed = result["quota"].get("ordinary_usage_allowed")
+        lines.append("  Ordinary usage allowed: " + ("unknown" if allowed is None else str(allowed).lower()))
+        for bucket in result["quota"]["buckets"]:
+            lines.append("  Bucket " + (bucket["limit_id"] or "unknown"))
+            for key in ("primary", "secondary"):
+                window = bucket[key]
+                if window is None:
+                    lines.append("    " + key + ": unknown")
+                    continue
+                def value(item): return "unknown" if item is None else str(item)
+                lines.append("    {}: used {}%; remaining {}%; window {} min; reset {}".format(
+                    key, value(window["used_percent"]), value(window["remaining_percent"]),
+                    value(window["window_minutes"]), value(window["resets_at_utc"])))
+        for window in result["quota"].get("windows", []):
+            lines.append("  {}: remaining {}%; reset {}; {}".format(
+                window.get("name") or window.get("scope"), window.get("remaining_percent"),
+                window.get("resets_at"), window.get("status")))
+        if result["quota"].get("reason"):
+            lines.append("  Quota note: " + result["quota"]["reason"])
+        models = result["models"]
+        lines.append("  Models: " + models["status"])
+        for model in models["entries"]:
+            lines.append("    " + model["id"] + (" [" + ", ".join(model["reasoning_efforts"]) + "]" if model.get("reasoning_efforts") else ""))
+        for error in result["errors"]:
+            lines.append("  " + error["operation"] + ": " + error["code"])
+        lines.extend("  Note: " + note for note in result["notes"])
+    if report.get("routing"):
+        chosen = report["routing"].get("recommended")
+        lines += ["", "Suggested worker: " + (chosen["provider"] + "/" + chosen["model_id"] if chosen else "none with verified fresh capacity")]
+    return "\n".join(lines)
+
+
+def positive_timeout(value):
+    try:
+        result = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("timeout must be a positive number") from None
+    if not math.isfinite(result) or result <= 0 or result > 120:
+        raise argparse.ArgumentTypeError("timeout must be greater than 0 and at most 120 seconds")
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--provider", choices=("all", "codex", "claude", "cursor"), default="all")
+    parser.add_argument("--json", action="store_true", help="Emit sanitized JSON; partial/unknown results intentionally exit zero")
+    parser.add_argument("--task", choices=("tiny", "routine", "substantial"), help="Add quota-aware worker advice; never launches a worker")
+    parser.add_argument("--reserve-percent", type=float, default=15, help="Local routing reserve, default 15%%; not a provider limit")
+    parser.add_argument("--timeout", type=positive_timeout, default=25.0, help="Deadline per provider in seconds, default 25; maximum 120")
+    args = parser.parse_args()
+    if not math.isfinite(args.reserve_percent) or not 0 <= args.reserve_percent <= 100:
+        parser.error("reserve-percent must be between 0 and 100")
+    providers = ["codex", "claude", "cursor"] if args.provider == "all" else [args.provider]
+    def probe(provider):
+        try:
+            return probe_codex(args.timeout) if provider == "codex" else probe_cli(provider, args.timeout, quota_probe=probe_usage)
+        except Exception:
+            # Do not leak arbitrary exception text, which can contain auth data.
+            result = base_result(provider)
+            result["status"] = "partial"
+            add_error(result, "probe", ProbeError("internal_error"))
+            return result
+    with ThreadPoolExecutor(max_workers=len(providers)) as pool:
+        results = list(pool.map(probe, providers))
+    report = {"schema_version": 2, "checked_at": utc_now(), "no_inference": True, "providers": results}
+    if args.task:
+        from agent_capacity.routing import recommendations
+        report["routing"] = recommendations(report, args.task, args.reserve_percent)
+    print(json.dumps(report, indent=2, allow_nan=False) if args.json else human_summary(report))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

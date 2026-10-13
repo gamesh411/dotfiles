@@ -1,17 +1,17 @@
 ---
 name: why
-description: "Use for 'why does X work this way', 'why we picked Y', design rationale, regressions, postmortems, or data-backed thresholds. Discovers available MCPs and queries each evidence category (source control, issue tracker, long-form docs, real-time chat, infrastructure observability, error tracking, product analytics warehouse) in parallel, then returns a cited read on decisions and tradeoffs. Use how for runtime behavior."
+description: "Investigate design rationale, regressions, postmortems, or data-backed thresholds using primary evidence. Use when the user asks why a technical decision was made."
 ---
 
 # Why
 
 Investigate the motivation and intent behind code. Why was it built this way? What edge cases were considered? What product, business, or operational constraints shaped the design? What alternatives were rejected, and why?
 
-Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
+This skill answers what forces led to the code's shape. For runtime mechanics, inspect the code directly or use a `how` skill when one is installed.
 
 ## How this skill works
 
-Historical context spreads across seven evidence categories: source control history, issue or ticket tracking, long-form documents, real-time team chat, infrastructure observability, error or exception tracking, and product analytics warehouses. You cannot predict from the question alone which one holds the answer, so the skill enumerates available MCPs at run time, maps each to a category, queries all seven in parallel, then synthesizes with explicit confidence calibration. Null results from searched categories are first-class evidence about how the decision was made; report them alongside positive findings. The default is coverage, not minimalism.
+Historical context spreads across seven evidence categories: source control history, issue or ticket tracking, long-form documents, real-time team chat, infrastructure observability, error or exception tracking, and product analytics warehouses. You cannot predict from the question alone which one holds the answer, so the skill enumerates available MCPs at run time, maps each to a category, queries all seven in parallel, then synthesizes with explicit confidence calibration. Null results show what the searches did not find; they do not prove that a decision was never documented. Report them alongside positive findings. The default is coverage, not minimalism.
 
 ## Operating Posture
 
@@ -83,7 +83,7 @@ git log --oneline -20 -- <file>
 git log -1 --format=%B <commit>
 ```
 
-Pull PR bodies and discussion via `gh` for any substantive commits:
+Pull PR bodies and discussion through the preferred available GitHub tool for any substantive commits. Use `gh-axi` when the host recommends it and supports the needed operation, a connector when available, or `gh` as a fallback. The following is a `gh` example, not a requirement to bypass the host's preferred tool:
 
 ```bash
 gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews
@@ -97,7 +97,7 @@ Capture this as seed context (file paths, symbols, commits, PR numbers, linked t
 
 ### Discovery
 
-Before spawning investigators, list the available MCPs in the Claude Code environment. Use the tool list at the top of the system prompt (every MCP appears as a tool with prefix `mcp__<server>__<name>`). Otherwise read `.mcp.json` in the plugin/project, or run `claude mcp list`.
+Before spawning investigators, inspect the current host's tool catalog or tool-discovery API. Discover the relevant connectors and read their schemas. Use host configuration or a CLI inventory only when discovery cannot answer the question, and never print authentication fields or secrets. Tool names and availability differ by host.
 
 Map each available MCP to one evidence category:
 
@@ -109,16 +109,13 @@ Map each available MCP to one evidence category:
 6. Error / exception tracking
 7. Product analytics warehouse
 
-Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
+Use source control history when a repository or connected source control service is available. Otherwise record that category as unavailable. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Aim for a complete **coverage map**, not a minimal one. A null result from an issue tracker is evidence the decision was not ticketed, a useful fact in itself. Document the null, don't skip the search.
+Aim for a complete **coverage map**, not a minimal one. A null result from an issue tracker means the chosen search found no relevant ticket. Document the query and its limits, without concluding that no ticket ever existed.
 
-Launch all matching investigators in a single message so they run concurrently. One investigator per category lets each specialize in one tool's query vocabulary and result shape. Don't ask one agent to cover multiple MCPs.
+Run matching investigators concurrently within the host's available slots. Queue additional investigators in batches when necessary. Keep one evidence category per investigator so findings remain attributable. If delegation is unavailable, run the searches sequentially and record that limitation.
 
-Subagent config (each):
-- `subagent_type`: `general-purpose`
-- `model`: your configured why-investigators model (default `claude-opus-4-8`)
-- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. The source control investigator would be safe in readonly, but keep modes uniform. Investigators still shouldn't write anything. That's a posture, not a sandbox.
+Use the current host's delegation schema and supported models. Inherit the current model unless a supported override is explicitly configured. Give investigators access to the selected connector if the host supports delegated connector access. Their task is read-only: no file edits, commits, messages, or external changes. If the connector cannot be delegated, run that category's queries in the parent and pass the results to the investigator.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
@@ -133,7 +130,7 @@ Spawn one investigator per category that has a matching MCP. Each owns exactly o
 
 Each entry lists what the category physically contains and the kind of "why" it uniquely surfaces. Use it to know what to expect back, how to name a gap when a category returns empty, and (only in the rare provably-irrelevant case) to justify a skip. Every category overlaps, but each owns a kind of evidence the others cannot recover.
 
-1. **Source control investigator**. Git history, `gh` for PRs, code comments, tests. Always spawn; the only guaranteed source. Best at surfacing *implementation-time rationale captured during review*. PR descriptions stating the problem, review threads debating alternatives, inline comments encoding non-obvious constraints, test names that encode motivating edge cases, and commit messages linking tickets or incidents. Most trustworthy because it ties directly to the diff that shipped.
+1. **Source control investigator**. Git history, `gh` for PRs, code comments, tests. Include when source control is available. Best at surfacing *implementation-time rationale captured during review*. PR descriptions stating the problem, review threads debating alternatives, inline comments encoding non-obvious constraints, test names that encode motivating edge cases, and commit messages linking tickets or incidents. Most trustworthy because it ties directly to the diff that shipped.
 
 2. **Issue / ticket tracker investigator** (e.g. Linear, Jira, GitHub Issues, Plane, Shortcut MCP). Tickets, project docs, status updates, spec attachments. Best at surfacing *the product or business forcing function*. Customer requests ("Acme needs X for their SOC2 audit"), compliance deadlines, parent-initiative framing ("Q3 enterprise readiness"), ticket-level scope changes, and labels that categorize the motivation (`customer:*`, `incident-followup`, `compliance`, `perf-regression`). Strongest when the why is external to engineering.
 
@@ -154,17 +151,13 @@ Only skip with an **explicit, written justification** that goes in the final "So
 - **No MCP is available for that category** in this environment. Flag this as a gap, not a choice. Example: "Real-time team chat skipped. No matching MCP available, so the conversational record was not searchable."
 - **The source is provably irrelevant**, not just "probably irrelevant." A high bar. Example: "Error / exception tracking skipped. Target is a build-time script with no runtime code path." Not "probably not in error tracking, it's a feature not an error."
 
-"It's pure feature code, error tracking won't have anything" is **not** sufficient, and neither is "I doubt long-form docs would have this." Run the search; let the null result speak. The cost of an investigator returning empty is one subagent. The cost of missing a design doc that actually exists is a wrong answer.
+"It's pure feature code, error tracking won't have anything" is **not** sufficient, and neither is "I doubt long-form docs would have this." Run the search; let the null result speak. An investigator may return no relevant evidence. The cost of missing a design doc that actually exists is a wrong answer.
 
 If your scope assessment suggests a single-commit trivial target where the PR description already contains the complete answer, you may answer inline **only after** confirming all seven available category searches would be redundant. Say so explicitly. This should be rare.
 
 ## Step 4. Synthesize
 
-Spawn one synthesizer subagent:
-
-- `subagent_type`: `general-purpose`
-- `model`: your configured why-synthesizer model (default `claude-opus-4-8`)
-- `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
+Use one synthesizer subagent through the host's delegation API, with the inherited model or an explicitly configured supported override. Its task is read-only. Give it connector access for citation checks when available; otherwise have the parent perform those checks. If delegation is unavailable, synthesize in the parent and disclose that limitation.
 
 The synthesizer gets:
 1. The investigator findings, including any null results and any categories skipped with justification
@@ -218,7 +211,7 @@ After the Sources Consulted block, if the user's `why` question is a precursor t
 - **Sycophantic agreement**. If the user suggests a reason ("I assume this is for performance?"), treat it as a hypothesis and check the evidence independently, don't just confirm it.
 - **Skipping the gaps section**. An honest accounting of what you couldn't find out is part of the value.
 - **Skipping investigators by anticipation**. Deciding up front that "long-form docs probably don't have this" or "this isn't an error tracking thing" without searching. The default-to-all-seven posture prevents this. A null result is a data point; a skipped search is a blind spot.
-- **Collapsing investigators into one agent**. Each MCP has its own query vocabulary, result shape, and pitfalls; pooling them dilutes specialization and makes coverage harder to reason about. Always one investigator per category.
+- **Collapsing investigators into one agent**. Each MCP has its own query vocabulary, result shape, and pitfalls; pooling them dilutes specialization and makes coverage harder to reason about. Keep findings separate by category even when concurrency or delegation is limited.
 
 ## Reference Files
 

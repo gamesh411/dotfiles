@@ -11,7 +11,7 @@ For work a human reviews after the fact, a decision trail lets them reconstruct 
 
 A single TSV file, one row per decision. TSV because GitHub renders it as a sortable table, `column -s$'\t' -t` and spreadsheets read it, and a row appends with one command. Cells stay single-line. Evidence is a pointer, not prose.
 
-Copy `references/decision-log-template.tsv` (the header row) to start a clean log. Columns:
+Resolve `references/` and `scripts/` paths relative to this skill directory. Copy `references/decision-log-template.tsv` (the header row) to start a clean log. Columns:
 
 - **ts.** ISO8601 timestamp. The timeline axis.
 - **phase.** The phase or workstream.
@@ -34,7 +34,7 @@ ts	phase	decision	why	evidence	result
 
 Write each entry the way you'd tell a teammate what you did. Plain words, concrete actions, no AI speak or abstract jargon (the **unslop** skill applies to log text too). A reviewer should understand each row without decoding it.
 
-Use the helper so rows stay well-formed: `scripts/log.sh <logfile> <phase> <decision> <why> <evidence> <result>`. It stamps `ts`, writes the header on first use, strips stray tabs/newlines, and prefixes any cell starting with `=`, `+`, `-`, or `@` with a single quote so a reviewer opening the log in a spreadsheet doesn't trigger formula execution. A bare `printf` appending a row works too, but mind those same bytes if cells come from generated or user-supplied text.
+Use the helper so rows stay well-formed: `bash scripts/log.sh <logfile> <phase> <decision> <why> <evidence> <result>`. It stamps `ts`, writes the header on first use, strips stray tabs/newlines, and prefixes any cell starting with `=`, `+`, `-`, or `@` with a single quote so a reviewer opening the log in a spreadsheet doesn't trigger formula execution. A bare `printf` appending a row works too, but mind those same bytes if cells come from generated or user-supplied text.
 
 Log decision points and checkpoints, not every action: a fork chosen, a unit completed with its verification result, a pivot or revert with its trigger, a blocker surfaced, a gate fixed. For loop runs, one row per iteration. Skip the trivial and self-evident.
 
@@ -48,29 +48,29 @@ Commit it only when the work is ambitious enough that a reviewer needs the trail
 
 - One row is one decision or checkpoint. If it doesn't fit on one line, the decision isn't crisp yet.
 - Append-only. A wrong call gets a new row that supersedes it. Never edit or delete history.
-- Prefer evidence produced by committed scripts over hand-made one-offs, so a reviewer can re-run it (the **encode-lessons-in-structure** principle skill).
+- Prefer evidence produced by repeatable scripts or recorded tool results, so a reviewer can check it.
 
 ## Audit the log against the transcript
 
-At the end of the run, before handing back, check the log told the truth. Read this run's transcript under Claude Code's per-project transcripts directory at `~/.claude/projects/<encoded-cwd>/`. Don't glob across `~/.claude/projects/`; that reads unrelated private chats. Walk the log against what actually happened:
+At the end of the run, before handing back, check the log told the truth. Use the current conversation and its tool results. If the host exposes an exact transcript for this run, you may read it. In Claude Code, that may be the current session file under `~/.claude/projects/<encoded-cwd>/`; resolve the specific session first. Never search unrelated chats. If the transcript is unavailable, audit against the recorded evidence and state that limit. Walk the log against what actually happened:
 
-- Every row maps to a real action. Cut invented or aspirational entries.
+- Every row maps to a real action. Append a correction for an invented, aspirational, or inaccurate entry.
 - Each row's evidence resolves and shows what the row claims.
 - A fork, pivot, or abandoned approach that shaped the work but isn't logged is a gap. Add it.
-- Drop padding. If nobody would audit a row, it doesn't earn its place.
+- Avoid padding in future entries. Keep existing history intact.
 
-Fix the log, not the story. If the work diverged from what a row claims, the row is wrong.
+Correct the log, not the story. If the work diverged from what a row claims, append a superseding row with the evidence.
 
 ## Cross-model review of the trail
 
-Before handing back, you must spawn a subagent on a different model family from the one that did the work. Self-review is not a substitute; the point is fresh eyes you cannot bring yourself. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky.
+Before handing back, request an independent subagent review through the host's available delegation tools. Prefer a different model family when the host exposes one and its use is authorized. Otherwise use an independent agent with the available model. If delegation is unavailable, perform an evidence audit and label it as self-review. Never claim a different model or independent review that did not run. Give the reviewer the audit trail, current-run evidence, and the exact transcript if available. It flags what the user should pay attention to:
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in the transcript.
 - Choices that look risky in hindsight (premature, scope-creeping, papering over a symptom).
 - Gaps the user would otherwise miss on a casual skim.
 
-Every reply for a run that produced a trail ends with an "Attention" section. Lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value; the model name is not. The self-audit asks if the log told the truth; this asks what the user should still scrutinize even when it did.
+The final handoff for a run that produced a trail names the review method and any material flags, pointing to specific rows or evidence. Name the reviewer model only when known. State "No material flags" if that is what the review found, and disclose any limit such as unavailable transcripts or self-review. The self-audit asks if the log told the truth; the independent review asks what the user should still scrutinize even when it did.
 
 ## Reviewing the trail
 

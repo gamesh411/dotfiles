@@ -1,57 +1,57 @@
 ---
 name: babysit
-description: Watch an open PR — fix failing CI, handle the straightforward review comments, and drive it to a mergeable state. Claude Code analog of Cursor's built-in /babysit. Use after opening a PR when the user wants the agent to shepherd it without re-prompting.
+description: "Watch an open PR when the user asks: fix failing CI, handle straightforward review comments, and drive it to a mergeable state."
 ---
 
 # Babysit a PR
 
-Claude Code analog of Cursor's built-in `/babysit`. The implementation is a loop over `gh` CLI plus the Claude Code `loop` skill for pacing.
+Use when the user explicitly asks to keep an open PR green or shepherd it to merge readiness. Opening a PR alone does not start monitoring. A subagent that opens a PR returns its status to the parent unless monitoring was assigned.
 
-## When to use
+## Tools and scope
 
-- There's an open PR and the user explicitly wants it kept green.
-- Right after `gh pr create`, when the PR should be shepherded to merge-ready without re-prompting.
-- A subagent that opens a PR does NOT babysit — return to the parent and let the parent decide.
+Use the host's preferred GitHub tool. Prefer `gh-axi` where the host provides it, then an available connector, with `gh` as a fallback. Inspect the selected tool's help or schema instead of assuming command parity. The examples below use `gh` syntax.
+
+Inspect the PR's actual base branch, current head commit, draft status, and review policy. Work against that base rather than assuming `main`. Follow repository instructions for builds, tests, commits, and pushes. Attach the PR to the current chat when the host supports PR attachments.
 
 ## Steps
 
-1. **Fetch PR state.**
+1. Fetch PR state, checks, conversations, and inline review threads. For example:
 
    ```bash
-   gh pr view <number> --json number,title,state,mergeable,reviewDecision,statusCheckRollup,mergeStateStatus,comments,reviews
+   gh pr view <number> --json number,title,state,baseRefName,headRefName,headRefOid,isDraft,mergeable,reviewDecision,statusCheckRollup,mergeStateStatus,comments,reviews
    ```
 
-2. **Triage in priority order.**
-   - Merge conflicts (`mergeStateStatus == DIRTY`): rebase or merge `main`; resolve; force-push only if the branch is yours and not shared.
-   - Failing checks (`statusCheckRollup` entries with `conclusion: FAILURE`): pull logs with `gh run view <run-id> --log-failed`. Root-cause the failure; fix the underlying code or test; commit; push.
-   - Review comments (`gh pr view --json comments,reviews`): act only on feedback you actually agree with. When a comment has a single mechanical answer — a rename, a guard clause, a formatting nit — make the edit and quote the comment in the commit message. When it hinges on a judgement call, or you can't tell what's being asked, don't guess: leave it and reply with what you would have done.
+   `comments` and `reviews` do not contain every inline review thread. Fetch review threads and their resolution status through an appropriate API or connector too. Record the head commit so later checks can be tied to the code actually reviewed.
 
-3. **Loop.** Use the Claude Code `loop` skill to pace re-checks. Pick the interval from what you're watching:
-   - Active CI run: poll `gh pr checks --watch` (it blocks until checks finish, so no separate loop interval needed).
-   - Awaiting reviewer: 20–30 min heartbeat.
-   - Idle but want to catch new comments: hourly.
+2. Triage in priority order:
 
-4. **When to stop.**
-   - Build is green, every comment resolved, branch merges cleanly → call it ready.
-   - You've run three rounds of fix → push → recheck and it still isn't fully green → stop, summarise what's still broken, and hand control back.
-   - The next fix would force a design choice → pause and put it to the user with `AskUserQuestion`.
+   - Merge conflicts: merge or rebase the actual base branch according to repository policy. Inspect branch ownership before considering a history rewrite.
+   - Failed checks: read the failing run's logs, diagnose the cause, fix it, run the relevant checks, commit, and push within the user's authorized scope.
+   - Review feedback: make mechanical changes you agree with. Defer design choices that require the user. When this skill is explicitly invoked, brief replies to the relevant PR review threads are part of addressing the review. Otherwise obtain explicit messaging authorization before posting. Resolve a thread only after the change has been verified.
 
-5. **Report.** Summarize fixes applied, comments addressed, comments deferred (with reason), current PR status. Cite each commit by SHA.
+3. Recheck after each push. Confirm the checks belong to the latest head commit. Batch related changes to avoid unnecessary CI runs.
+
+4. Pace monitoring through tools the current host provides:
+
+   - Active CI: use bounded waits or a check watcher while preserving the ability to report meaningful progress.
+   - Later follow-up: use the host's scheduler when the user requested ongoing monitoring. In Codex, use a thread heartbeat. In Claude Code, an installed loop facility may be used. Do not assume a named loop skill exists.
+   - Awaiting review: 20 to 30 minute checks are usually enough. For an idle PR, use hourly checks. Stay quiet while nothing actionable changes.
+   - Without a scheduler, monitor during the current run and state that later monitoring is unavailable.
+
+5. Stop and report when the PR is ready, closed, or merged. Readiness means required checks pass for the latest head, the branch merges cleanly, actionable review threads are resolved, and the repository's review requirements are satisfied. After three unsuccessful fix cycles, report the unresolved cause and next step. Ask the user only when the next action requires an unprovided design decision or permission.
 
 ## Hard rules
 
-- Don't rewrite history on a branch others may have pulled. If a rebase or force-push looks necessary, clear it with the user first.
-- Don't tweak a test's expected values just to get a pass. Only change an assertion when the behaviour genuinely changed and the assertion was pinned to the old behaviour.
-- Never skip hooks (`--no-verify`).
-- Never bypass a failing check by marking it as not required.
-- `gh pr ready` only when all checks are green and no unresolved review comments remain.
+- Do not rewrite history on a shared branch without authorization. Prefer a normal merge when repository policy allows it.
+- Change test expectations only when they were wrong or the intended behavior changed.
+- Keep hooks and required checks enabled.
+- Mark a draft ready only within the user's requested scope and after readiness checks pass.
+- Merge only when the user separately authorized merging and all required conditions hold.
 
-## Cross-refs
+## Report
 
-- The `no-mistakes` gate (`git push no-mistakes`) hands off here once its PR is open.
-- Run `/code-review` (or the no-mistakes review) before opening if the diff is contested; once open, babysit takes over.
-- Use `unslop` on any prose you write here (PR comments, commit messages, status reports).
+Summarize fixes, relevant commit SHAs, deferred feedback, latest-head checks, and any remaining blocker. Use `code-review` when a change needs a broader review, and `unslop` for prose. If posting was authorized by an explicit invocation of this skill, name and link this SKILL.md in the final response.
 
 ## Provenance
 
-This is a Claude Code analog of Cursor's `/babysit`, not a port — Cursor's implementation is closed source. The skill is independently authored, with its own prose and structure; the workflow is informed by Cursor's public `/babysit` behavior. The only overlap with other PR tools is the `gh` CLI commands it runs, which are functional invocations rather than copied text.
+Independently authored workflow informed by Cursor's public `/babysit` behavior. It is not a port of Cursor's implementation.

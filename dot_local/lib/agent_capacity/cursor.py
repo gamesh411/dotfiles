@@ -42,8 +42,9 @@ def native_token():
         database = Path.home() / "Library/Application Support/Cursor/User/globalStorage/state.vscdb"
     elif sys.platform == "win32":
         roaming = os.environ.get("APPDATA", "")
-        auth = (Path(roaming) if Path(roaming).is_absolute() else Path.home() / "AppData/Roaming") / "Cursor/auth.json"
-        database = None  # No verified native desktop path in this audit.
+        root = Path(roaming) if Path(roaming).is_absolute() else Path.home() / "AppData/Roaming"
+        auth = root / "Cursor/auth.json"
+        database = root / "Cursor/User/globalStorage/state.vscdb"
     else:
         auth = config_home() / "cursor/auth.json"
         database = config_home() / "Cursor/User/globalStorage/state.vscdb"

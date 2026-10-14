@@ -14,12 +14,14 @@ import json
 import math
 import os
 from pathlib import Path
+import queue
 import re
 import selectors
 import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 VERSION = "2.0.0"
@@ -246,8 +248,7 @@ def capture(argv, deadline):
     if remaining <= 0:
         raise ProbeError("timeout")
     try:
-        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, env=process_environment(), start_new_session=True)
+        proc = subprocess.Popen(argv, **_popen_kwargs(stdin=subprocess.DEVNULL))
     except (OSError, ValueError):
         raise ProbeError("launch_failed") from None
     try:
@@ -263,17 +264,43 @@ def capture(argv, deadline):
             proc.stdout.close()
 
 
+def _popen_kwargs(**streams):
+    kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=process_environment(), **streams)
+    # setsid is POSIX-only. On Windows the app-server reader uses a thread
+    # because select() waits on sockets, not pipes.
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    return kwargs
+
+
 class AppServer:
     def __init__(self, argv):
         try:
-            self.proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=subprocess.DEVNULL, env=process_environment(), start_new_session=True)
+            self.proc = subprocess.Popen(argv, **_popen_kwargs(stdin=subprocess.PIPE))
         except (OSError, ValueError):
             raise ProbeError("launch_failed") from None
-        self.selector = selectors.DefaultSelector()
-        self.selector.register(self.proc.stdout, selectors.EVENT_READ)
+        self.selector = None
+        self.lines = None
         self.buffer = b""
         self.next_id = 0
+        if os.name == "posix":
+            self.selector = selectors.DefaultSelector()
+            self.selector.register(self.proc.stdout, selectors.EVENT_READ)
+        else:
+            # Windows select() waits on sockets only, so a reader thread yields
+            # newline-delimited app-server messages instead.
+            self.lines = queue.Queue()
+            threading.Thread(target=self._read_lines, daemon=True).start()
+
+    def _read_lines(self):
+        try:
+            for line in self.proc.stdout:
+                self.lines.put(line)
+                if len(line) > MAX_OUTPUT:
+                    break
+        except OSError:
+            pass
+        self.lines.put(None)
 
     def send(self, method, params=None, notification=False):
         request = {"method": method, "params": params or {}}
@@ -287,29 +314,45 @@ class AppServer:
             raise ProbeError("process_exited") from None
         return request.get("id")
 
+    def _next_line(self, deadline):
+        if self.lines is None:
+            while b"\n" not in self.buffer:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not self.selector.select(remaining):
+                    raise ProbeError("timeout")
+                chunk = os.read(self.proc.stdout.fileno(), 65536)
+                if not chunk:
+                    raise ProbeError("process_exited")
+                self.buffer += chunk
+                if len(self.buffer) > MAX_OUTPUT:
+                    raise ProbeError("output_limit")
+            line, self.buffer = self.buffer.split(b"\n", 1)
+            return line
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProbeError("timeout")
+        try:
+            line = self.lines.get(timeout=remaining)
+        except queue.Empty:
+            raise ProbeError("timeout") from None
+        if line is None:
+            raise ProbeError("process_exited")
+        if len(line) > MAX_OUTPUT:
+            raise ProbeError("output_limit")
+        return line.rstrip(b"\r\n")
+
     def receive(self, deadline):
         while True:
-            if b"\n" in self.buffer:
-                line, self.buffer = self.buffer.split(b"\n", 1)
-                try:
-                    message = json.loads(line)
-                except (ValueError, UnicodeError):
-                    continue
-                if isinstance(message, dict):
-                    return message
+            try:
+                message = json.loads(self._next_line(deadline))
+            except (ValueError, UnicodeError):
                 continue
-            remaining = deadline - time.monotonic()
-            if remaining <= 0 or not self.selector.select(remaining):
-                raise ProbeError("timeout")
-            chunk = os.read(self.proc.stdout.fileno(), 65536)
-            if not chunk:
-                raise ProbeError("process_exited")
-            self.buffer += chunk
-            if len(self.buffer) > MAX_OUTPUT:
-                raise ProbeError("output_limit")
+            if isinstance(message, dict):
+                return message
 
     def close(self):
-        self.selector.close()
+        if self.selector is not None:
+            self.selector.close()
         terminate_process_group(self.proc)
         for stream in (self.proc.stdin, self.proc.stdout):
             if stream:
@@ -499,7 +542,7 @@ def probe_usage(provider, binary, timeout, auth_snapshot):
 def human_summary(report):
     lines = ["Agent capacity at " + report["checked_at"], "Read-only probes; no inference. Unknown quota is not zero."]
     for result in report["providers"]:
-        lines += ["", result["provider"].upper() + " — " + result["status"],
+        lines += ["", result["provider"].upper() + " - " + result["status"],
                   "  Auth: " + result["auth"]["status"], "  Quota: " + result["quota"]["status"]]
         allowed = result["quota"].get("ordinary_usage_allowed")
         lines.append("  Ordinary usage allowed: " + ("unknown" if allowed is None else str(allowed).lower()))

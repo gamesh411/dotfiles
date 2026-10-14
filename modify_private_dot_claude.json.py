@@ -17,6 +17,7 @@ import sys
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n".
 # Claude Code writes this file as UTF-8 with LF, so without this every apply
 # would rewrite all ~900 lines and chezmoi would report drift forever.
+sys.stdin.reconfigure(encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 # Expanded here rather than left as a literal "~": these args are passed

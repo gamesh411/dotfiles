@@ -22,6 +22,7 @@ import sys
 
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n";
 # Claude Code writes this file as UTF-8 with LF. See modify_private_dot_claude.json.py.
+sys.stdin.reconfigure(encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 REPO = os.path.expanduser("~/projects/ai-brain").replace("\\", "/")

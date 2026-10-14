@@ -11,6 +11,7 @@ from pathlib import Path
 
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n";
 # Cursor writes this file as UTF-8 with LF. See modify_private_dot_claude.json.py.
+sys.stdin.reconfigure(encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 PRESERVE = {

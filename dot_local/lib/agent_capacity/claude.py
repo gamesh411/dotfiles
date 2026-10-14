@@ -17,7 +17,7 @@ import time
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 FRESH_SECONDS = 60
-VERIFIED_VERSIONS = {(2, 1, 286)}
+VERIFIED_VERSIONS = {(2, 1, 286), (2, 1, 292)}
 
 
 class ProbeError(Exception):

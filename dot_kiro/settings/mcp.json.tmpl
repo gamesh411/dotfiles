@@ -1,0 +1,25 @@
+{{- $repo := joinPath .chezmoi.homeDir "projects/ai-brain" -}}
+{{- $blender := joinPath .chezmoi.homeDir ".kiro/mcp-servers/blender-mcp" -}}
+{
+  "mcpServers": {
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp"
+    },
+{{ if stat $blender }}
+    "blender": {
+      "command": {{ lookPath "uv" | default "uv" | toJson }},
+      "args": ["run", "--directory", {{ $blender | toJson }}, "blender-mcp"]
+    },
+{{ end }}
+    "open-brain": {
+      "command": "node",
+      "args": [
+        {{ joinPath $repo "node_modules/tsx/dist/cli.mjs" | toJson }},
+        {{ joinPath $repo "mcp/src/index.ts" | toJson }}
+      ],
+      "env": {
+        "OPEN_BRAIN_CLIENT": "kiro"
+      }
+    }
+  }
+}

@@ -27,5 +27,7 @@ def merge(current):
 
 
 if __name__ == "__main__":
+    # Windows defaults stdin to the ANSI codepage. The target is UTF-8.
+    sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     sys.stdout.write(merge(sys.stdin.read()))

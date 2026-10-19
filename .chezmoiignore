@@ -6,10 +6,9 @@
 .cursor/_cli-config.desired.json
 
 # Machine-local scheduler and tooling state, not config.
-# Both rewrite themselves on every run, and applying a stale copy on another
-# machine would rewind its schedule (see agent/curator.py interval_hours).
+# Rewrites itself on every run, and applying a stale copy on another machine
+# would rewind its schedule.
 .agents/.skill-lock.json
-.hermes/skills/.curator_state
 
 # Claude Code: runtime state, caches, and session transcripts.
 # Only settings.json, CLAUDE.md, and skills/ symlinks are tracked.

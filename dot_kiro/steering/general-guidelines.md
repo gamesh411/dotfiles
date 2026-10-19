@@ -55,6 +55,32 @@ If something clearly looks off, even if it is not directly related to what you a
 Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
 If you see one, even if it is not caused by what you are working on right now, still get it fixed.
 
+## Simplicity first
+
+Write the minimum code that solves the problem, nothing speculative.
+Do not add abstractions for single-use code, or flexibility and configurability that was not requested.
+If you write 200 lines and it could be 50, rewrite it.
+
+## Surgical changes
+
+Touch only what you must, and clean up only your own mess.
+Do not improve adjacent code, comments, or formatting, and do not refactor things that are not broken.
+Match the existing style rather than reformatting untouched code.
+Remove imports and variables that your own changes made unused, but leave pre-existing dead code alone.
+The test is simple: every changed line traces directly to the request.
+
+## Self-review before submitting
+
+Before handing back a change, review it once as an adversarial reviewer.
+Read the project's style conventions first, then check:
+
+- Correctness: can any cast, type assertion, or pointer deref crash, and is null handled or provably impossible? Does the fix handle all callers and paths, not just the triggering one? Any off-by-one in index, size, or boundary computations?
+- Edge cases: empty or zero-size inputs, unknown or symbolic values, compound or multi-element declarations, static versus local lifetime, and the fallback for unexpected types.
+- Tests: a positive test that the bug is caught, a negative test for no false positive, and a boundary test at the edge of the fix. Put tests in an existing file when one fits, and keep expectations exact rather than over-matching.
+- Commit hygiene: one logical change per commit, a message that states the problem and root cause rather than the diff, and any referenced commit hashes verified.
+
+Report remaining issues by severity (crash risk, semantic bug, style, nit) and end with a clear verdict.
+
 <!-- shared-delegation:start -->
 ## Delegation
 

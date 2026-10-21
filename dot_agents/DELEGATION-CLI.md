@@ -37,7 +37,12 @@ Check `cursor-agent --help`, `cursor-agent status --format json`, and `cursor-ag
 
 For read-only work, use `cursor-agent --print --mode ask --sandbox enabled --model '<verified model identifier>' --output-format json` with the brief passed as one argument through a process API. A real request verified `cursor-grok-4.6-high-fast` on 2026-10-13. Refresh the model list before using the example later. For authorized edits, use the client's normal mode in the assigned worktree with sandboxing enabled and the host's permission constraints. Do not use `--force` or unattended approval overrides to fix a blocked run.
 
-Workspace trust is separate from login and command permissions. When Cursor reports `Workspace Trust Required`, use an existing trust decision or obtain the user's approval for the exact directory before adding `--trust`. This flag persists trust for every effective workspace directory, including additional roots; restrict the invocation to the approved directory. It does not replace `--sandbox enabled` or grant permission for commands.
+Workspace trust is separate from login and command permissions.
+When Cursor reports `Workspace Trust Required`, add `--trust`: the user gave standing approval on 2026-10-22 to trust the directory a delegated task runs in.
+This flag persists trust for every effective workspace directory, including additional roots; restrict the invocation to the task's own directory.
+It does not replace `--sandbox enabled` or grant permission for commands.
+`--model` also persists as the interactive default model in `~/.cursor/cli-config.json`, so every worker run changes the user's Cursor selection.
+Run `chezmoi apply ~/.cursor/cli-config.json` after a batch to restore the tracked choice.
 
 The helper reads the first-party `/api/usage-summary` endpoint with the native Cursor session; no model prompt, browser-cookie extraction, or token refresh is used. It keeps the server-reported Cursor Models and Other Models percentages separate. Aggregate monetary fields do not reconstruct either pool. Cursor Models currently covers the supported Grok 4.5/4.6/4.7 routes. Auto and Router can consume either pool and receive no automatic recommendation. The endpoint is internal and may change; a missing field stays unknown.
 
@@ -58,13 +63,14 @@ Check `claude auth status --json` and `claude --help`. Select a model accepted b
 
 For a pure text transformation, `claude --print --model '<verified model>' --effort low --tools '' --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence --output-format json` can read the brief from stdin. The tool flags disable built-in and MCP tools for that text-only job. For work requiring tools, grant only the tools and directories needed under the current permission policy. Use `--permission-prompts none` for headless runs only when unsupported approval requests should fail back to the parent. It does not grant approval.
 
-For machine-checked output, add `--json-schema '<schema>'` and inspect `structured_output` in the response envelope. A text-only test verified the installed `haiku` alias on 2026-10-13; that run reported `claude-haiku-4-5-20251001`. Do not assume an alias selects the newest generation.
+For machine-checked output, add `--json-schema '<schema>'` and inspect `structured_output` in the response envelope. A text-only test verified the installed `haiku` alias on 2026-10-22 with Claude Code 2.1.304; that run reported `claude-haiku-5-5`. Do not assume an alias selects the newest generation.
 
-Claude Code 2.1.286 and 2.1.292 have a verified local `get_usage` control request.
+Claude Code 2.1.286, 2.1.292, and 2.1.304 have a verified local `get_usage` control request.
 The helper uses this native interface with tools, hooks, MCP servers, session persistence, and permission prompts disabled; it sends no model turn.
 It checks the native account-bound cache timestamp so a silent stale fallback cannot masquerade as fresh quota.
 This experimental control interface is enabled only for those verified versions; other versions return unknown until reverified.
 2.1.292 was checked on Windows on 2026-10-14 and returned fresh subscription windows with no model turn.
+2.1.304 was checked on macOS on 2026-10-22 with the same result.
 Unavailable quota also returns unknown; never guess that an unverified `/usage` text prompt will stay local.
 `--max-budget-usd` is not a subscription-allowance guard.
 

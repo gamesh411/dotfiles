@@ -10,6 +10,22 @@ time-cmd() {
   /usr/bin/time -lp "$@" 2>&1
 }
 
+mm() {
+    local subject="$1"
+    local move_target="$2"
+
+    mv "${subject}" "${move_target}"
+    cd "${move_target}"
+}
+
+mmm() {
+    local subject="$1"
+    local move_target="$2"
+
+    mkdir -p "${move_target}"
+    mm "${subject}" "${move_target}"
+}
+
 swap() {
   set -x
   local file_1="$1"

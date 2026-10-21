@@ -1,6 +1,6 @@
 -- Colorscheme (load first)
 require("catppuccin").setup({
-  flavour = "latte",
+  flavour = "mocha",
 })
 vim.cmd.colorscheme("catppuccin")
 

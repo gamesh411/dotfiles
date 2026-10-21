@@ -7,6 +7,7 @@ conform.setup({
     python = { "darker" },
     lua = { "stylua" },
     odin = { "ols" },
+    gdscript = { "gdscript-formatter" },
   },
 })
 

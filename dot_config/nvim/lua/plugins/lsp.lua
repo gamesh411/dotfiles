@@ -34,7 +34,22 @@ vim.lsp.config("ols", {
   capabilities = capabilities,
 })
 
-vim.lsp.enable({ "clangd", "basedpyright", "lua_ls", "ols" })
+vim.lsp.config("rust_analyzer", {
+  cmd = { "rust-analyzer" },
+  filetypes = { "rust" },
+  root_markers = { "rust-project.json", ".git" },
+  capabilities = capabilities,
+})
+
+-- Served by the running Godot editor, not spawned; 6005 is the editor default.
+vim.lsp.config("gdscript", {
+  cmd = vim.lsp.rpc.connect("127.0.0.1", tonumber(vim.env.GDScript_Port or "6005")),
+  filetypes = { "gdscript" },
+  root_markers = { "project.godot", ".git" },
+  capabilities = capabilities,
+})
+
+vim.lsp.enable({ "clangd", "basedpyright", "lua_ls", "ols", "rust_analyzer", "gdscript" })
 
 -- LSP keymaps on attach
 vim.api.nvim_create_autocmd("LspAttach", {

@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "gh-axi", "timeout": 10}]},
+      {"matcher": "", "hooks": [{"type": "command", "command": "chrome-devtools-axi", "timeout": 10}]},
+      {"matcher": "", "hooks": [{"type": "command", "command": "lavish-axi", "timeout": 10}]},
+      {"matcher": "startup|resume|clear", "hooks": [{
+        "type": "command",
+        "command": {{ printf "python3 \"%s/.codex/hooks/open-brain.py\" recall" .chezmoi.homeDir | toJson }},
+        "commandWindows": {{ printf "python \"%s/.codex/hooks/open-brain.py\" recall" .chezmoi.homeDir | toJson }},
+        "timeout": 15
+      }]}
+    ],
+    "SessionEnd": [{"matcher": "", "hooks": [{
+      "type": "command",
+      "command": {{ printf "python3 \"%s/.codex/hooks/open-brain.py\" mine" .chezmoi.homeDir | toJson }},
+      "commandWindows": {{ printf "python \"%s/.codex/hooks/open-brain.py\" mine" .chezmoi.homeDir | toJson }},
+      "timeout": 3
+    }]}]
+  }
+}

@@ -201,5 +201,8 @@ When an agent errs, record the correction in memory (project CLAUDE.md, AGENTS.m
 <!-- shared-delegation:start -->
 ## Delegation
 
-For tasks with separable routine work, model selection, or cross-CLI workers, read `~/.agents/DELEGATION.md` and follow the shared delegation policy. Keep design and final judgment with the capable lead; offload bounded work when it saves effort, after checking live capacity with `~/.local/bin/agent-capacity --json`. When the assignment starts with `DELEGATED_WORKER` or the environment has `AGENT_DELEGATION_DEPTH=1`, execute only that assignment without further delegation.
+**Delegate** bounded work: the user's standing request is that you use subagents and the installed Codex, Cursor and Claude CLIs, so it counts as being asked.
+Codex and Cursor workers draw on separate subscription quota, so delegating saves the lead's budget; uniform, repetitive parts are the best candidates, batched into one brief.
+Use the `delegate` skill, or `~/.agents/DELEGATION.md` where skills are unavailable, when a task splits into independent parts, carries mechanical bulk, or wants a second-model review; design, judgment and final acceptance stay with you.
+A session whose assignment starts with `DELEGATED_WORKER`, or that runs with `AGENT_DELEGATION_DEPTH=1`, is a worker: complete that assignment yourself and return the result.
 <!-- shared-delegation:end -->

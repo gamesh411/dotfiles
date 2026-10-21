@@ -92,8 +92,15 @@ AXI_HOOKS = [
     for name in ("gh-axi", "chrome-devtools-axi", "lavish-axi")
 ]
 
+# Live worker headroom, so the lead sees spare capacity before planning.
+# Skipped on compaction like recall: the numbers are already in the summary.
+CAPACITY_HOOK = {
+    "matcher": "startup|resume|clear",
+    "hooks": [{"type": "command", "command": "agent-capacity --brief --timeout 8", "timeout": 15}],
+}
+
 HOOKS = {
-    "SessionStart": AXI_HOOKS + OPEN_BRAIN_HOOKS["SessionStart"],
+    "SessionStart": AXI_HOOKS + [CAPACITY_HOOK] + OPEN_BRAIN_HOOKS["SessionStart"],
     "SessionEnd": OPEN_BRAIN_HOOKS["SessionEnd"],
 }
 

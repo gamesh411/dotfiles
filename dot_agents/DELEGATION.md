@@ -34,7 +34,7 @@ The helper reads Codex limits through its CLI app-server, Claude through its ver
 
 ## Dispatch and accept
 
-- Use native subagents when they provide the intended model with less overhead. Otherwise read `~/.agents/DELEGATION-CLI.md` for checked CLI recipes. Cross-CLI delegation is optional, not a quota to fill.
+- Use native subagents when they provide the intended model with less overhead, and name that model on every spawn: an omitted model inherits the lead's, the most expensive route. Otherwise read `~/.agents/DELEGATION-CLI.md` for checked CLI recipes. Cross-CLI delegation is optional, not a quota to fill.
 - Supply only the needed context: task, relevant files, constraints, owned output paths, acceptance checks, and a return format. Begin the assignment with `DELEGATED_WORKER: complete only this bounded task; do not spawn other agents.` Set `AGENT_DELEGATION_DEPTH=1` for shell workers. When the assignment starts with this marker or the environment variable equals `1`, execute it and return to the parent without further delegation.
 - Use read-only access for investigation. For edits, assign disjoint files or an isolated worktree using the project's worktree workflow. Verify the child's actual sandbox and inherited hooks; the parent's sandbox does not automatically confine another process. Never use approval-bypass flags or broaden access to make delegation work.
 - Set a time bound and one owner per file. Keep existing user edits intact. Workers report changed paths, checks run, results, and unresolved questions. External communication, publishing, or destructive actions stay subject to the original authorization.

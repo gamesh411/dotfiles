@@ -576,6 +576,35 @@ def human_summary(report):
     return "\n".join(lines)
 
 
+def brief_summary(report):
+    """One line for a SessionStart hook: live headroom per provider plus the suggested worker.
+
+    Leads skipped delegation because nothing in the session showed spare capacity;
+    this line makes it visible without the agent having to ask first.
+    """
+    parts = []
+    for result in report["providers"]:
+        provider = result["provider"]
+        measured = [c for c in report["routing"]["candidates"]
+                    if c["provider"] == provider and c["remaining_percent"] is not None]
+        if not measured:
+            parts.append(provider + " unknown")
+            continue
+        eligible = [c for c in measured if c["eligible"]]
+        best = max(eligible or measured, key=lambda c: c["remaining_percent"])
+        known = [w for w in best["windows"] if w["remaining_percent"] is not None]
+        binding = min(known, key=lambda w: w["remaining_percent"]) if known else None
+        reset = " until " + binding["resets_at"][:16].replace("T", " ") + "Z" if binding and binding.get("resets_at") else ""
+        # Claude aliases are never auto-recommended, but their quota is real.
+        manual = "" if eligible else " (manual pick)"
+        parts.append("{} {:.0f}% left{}{}".format(provider, best["remaining_percent"], reset, manual))
+    chosen = report["routing"].get("recommended")
+    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "none verified"
+    return ("Delegation capacity (read-only, no inference): " + "; ".join(parts)
+            + ". Suggested routine worker: " + suggestion
+            + ". While planning any task with independent parts, run the `delegate` skill to cut it into lead and worker parts.")
+
+
 def positive_timeout(value):
     try:
         result = float(value)
@@ -593,9 +622,17 @@ def main():
     parser.add_argument("--task", choices=("tiny", "routine", "substantial"), help="Add quota-aware worker advice; never launches a worker")
     parser.add_argument("--reserve-percent", type=float, default=15, help="Local routing reserve, default 15%%; not a provider limit")
     parser.add_argument("--timeout", type=positive_timeout, default=25.0, help="Deadline per provider in seconds, default 25; maximum 120")
+    parser.add_argument("--brief", action="store_true", help="One-line SessionStart summary with routine-task advice; silent inside workers")
     args = parser.parse_args()
     if not math.isfinite(args.reserve_percent) or not 0 <= args.reserve_percent <= 100:
         parser.error("reserve-percent must be between 0 and 100")
+    if args.brief:
+        # Workers must not delegate, and the probes' own child CLIs inherit this
+        # environment, so a nested session hook stays silent instead of re-probing.
+        if os.environ.get("AGENT_DELEGATION_DEPTH") == "1" or os.environ.get("AGENT_CAPACITY_BRIEF"):
+            return 0
+        os.environ["AGENT_CAPACITY_BRIEF"] = "1"
+        args.task = args.task or "routine"
     providers = ["codex", "claude", "cursor"] if args.provider == "all" else [args.provider]
     def probe(provider):
         try:
@@ -612,7 +649,10 @@ def main():
     if args.task:
         from agent_capacity.routing import recommendations
         report["routing"] = recommendations(report, args.task, args.reserve_percent)
-    print(json.dumps(report, indent=2, allow_nan=False) if args.json else human_summary(report))
+    if args.brief:
+        print(brief_summary(report))
+    else:
+        print(json.dumps(report, indent=2, allow_nan=False) if args.json else human_summary(report))
     return 0
 
 

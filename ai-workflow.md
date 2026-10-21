@@ -74,6 +74,8 @@ Everything below auto fails at creative tasks.
 ## Tool Versions (updated 2026-08-22)
 
 Treehouse and no-mistakes now self-heal on every `chezmoi apply` via `run_after_install-agentic-tools.sh` (official installers on macOS/Linux, release zips into `~/.local/bin` on Windows).
+AXI CLIs self-heal via `run_after_install-axi-clis.sh`, which also symlinks each package's bundled `SKILL.md` into `~/.cursor/skills` so Cursor Agent can discover Lavish / gh-axi / chrome-devtools-axi.
+Claude Code still gets those CLIs through SessionStart hooks; Cursor has no AXI hook target, so the skill file is the discovery path.
 
 | Tool | Version | Install/Update |
 |------|---------|---------------|

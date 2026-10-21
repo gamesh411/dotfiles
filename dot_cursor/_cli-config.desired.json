@@ -27,10 +27,10 @@
   "modelSlashCommands": true,
   "rewind": false,
   "model": {
-    "modelId": "grok-4.6",
-    "displayModelId": "grok-4.6",
-    "displayName": "Cursor Grok 4.6 High Fast",
-    "displayNameShort": "Cursor Grok 4.6 High Fast",
+    "modelId": "grok-4.7",
+    "displayModelId": "grok-4.7",
+    "displayName": "Grok 4.7 256K High Fast",
+    "displayNameShort": "Grok 4.7 256K High Fast",
     "aliases": [],
     "maxMode": false
   },
@@ -70,13 +70,31 @@
         "id": "fast",
         "value": "true"
       }
+    ],
+    "grok-4.7": [
+      {
+        "id": "context",
+        "value": "256k"
+      },
+      {
+        "id": "reasoning_effort",
+        "value": "high"
+      },
+      {
+        "id": "fast",
+        "value": "true"
+      }
     ]
   },
   "selectedModel": {
-    "modelId": "grok-4.6",
+    "modelId": "grok-4.7",
     "parameters": [
       {
-        "id": "effort",
+        "id": "context",
+        "value": "256k"
+      },
+      {
+        "id": "reasoning_effort",
         "value": "high"
       },
       {
@@ -86,6 +104,7 @@
     ]
   },
   "modelSelectionHistory": [
+    "grok-4.7",
     "grok-4.6",
     "grok-4.5"
   ],

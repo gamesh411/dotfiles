@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The SessionStart hooks in dot_claude/settings.json invoke these AXI CLIs,
+# The SessionStart hooks in dot_claude/modify_settings.json.py and
+# dot_codex/hooks.json.tmpl invoke gh-axi and chrome-devtools-axi,
 # so a machine without them greets every Claude Code session with
 # "command not found". Runs on every apply rather than run_onchange_ so a
 # machine self-heals if the packages are ever removed; the command -v probe

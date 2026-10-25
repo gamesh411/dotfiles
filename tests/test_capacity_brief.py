@@ -19,8 +19,19 @@ class CapacityBriefTest(unittest.TestCase):
         })
         for name in ("codex", "claude", "cursor"):
             self.assertIn(name + " unknown", brief)
-        self.assertIn("manual selection; quota may be unknown", brief)
+        self.assertIn("none automatic; choose manually", brief)
         self.assertEqual(len(brief.splitlines()), 1)
+
+    def test_known_exhausted_quota_is_not_reported_as_unknown(self):
+        candidate = {"provider": "codex", "remaining_percent": 0, "eligible": False,
+                     "windows": [{"remaining_percent": 0, "resets_at": "2026-10-26T01:10:00Z"}]}
+        brief = runpy.run_path(str(CLI))["brief_summary"]({
+            "providers": [{"provider": "codex"}],
+            "routing": {"candidates": [candidate], "recommended": None},
+        })
+        self.assertIn("codex 0% left until 2026-10-26 01:10Z (manual pick)", brief)
+        self.assertIn("none automatic; choose manually", brief)
+        self.assertNotIn("unknown", brief)
 
     def test_worker_hooks_exit_silently_before_starting_probes(self):
         for guard in ("AGENT_DELEGATION_DEPTH", "AGENT_CAPACITY_BRIEF"):

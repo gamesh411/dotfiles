@@ -20,6 +20,20 @@ SURFACES = [
 ]
 
 
+def frontmatter(text):
+    """Top-level scalar keys of the leading block; comments and nested lines are not keys."""
+    lines = text.splitlines()
+    assert lines[:1] == ["---"], "missing frontmatter"
+    values = {}
+    for line in lines[1:lines.index("---", 1)]:
+        if not line or line.startswith((" ", "\t", "#")):
+            continue
+        key, separator, value = line.partition(":")
+        if separator:
+            values[key] = value.strip()
+    return values
+
+
 class DelegationTemplatesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -45,19 +59,21 @@ class DelegationTemplatesTest(unittest.TestCase):
                 self.assertIn("AGENT_DELEGATION_DEPTH=1", rendered)
                 self.assertIn("DELEGATED_WORKER", rendered)
                 self.assertLess(rendered.index(hint), len(rendered) // 2)
-        cursor = self.render("dot_cursor/rules/general-guidelines.mdc.tmpl")
-        frontmatter = cursor.split("---", 2)[1]
-        self.assertIn("alwaysApply: true", frontmatter)
-        self.assertIn("description:", frontmatter)
-        kiro = self.render("dot_kiro/steering/general-guidelines.md.tmpl")
-        self.assertIn("inclusion: always", kiro.split("---", 2)[1])
+        cursor = frontmatter(self.render("dot_cursor/rules/general-guidelines.mdc.tmpl"))
+        self.assertEqual(cursor["alwaysApply"], "true")
+        self.assertTrue(cursor["description"])
+        kiro = frontmatter(self.render("dot_kiro/steering/general-guidelines.md.tmpl"))
+        self.assertEqual(kiro["inclusion"], "always")
 
-    def test_opencode_loads_the_standalone_shared_hint(self):
+    def test_opencode_loads_the_compact_hint_before_the_full_policy(self):
         config = json.loads(self.render("dot_config/opencode/opencode.jsonc.tmpl"))
-        self.assertEqual(len(config["instructions"]), 1)
-        self.assertEqual(Path(config["instructions"][0]).name, "DELEGATION-HINT.md")
-        self.assertEqual(Path(config["instructions"][0]).parent.name, ".agents")
+        self.assertEqual([Path(path).name for path in config["instructions"]], ["DELEGATION-HINT.md", "DELEGATION.md"])
+        self.assertEqual({Path(path).parent.name for path in config["instructions"]}, {".agents"})
         self.assertEqual(self.render("dot_agents/DELEGATION-HINT.md.tmpl").strip(), HINT_PATH.read_text().strip())
+
+    def test_frontmatter_model_ignores_commented_and_nested_keys(self):
+        self.assertEqual(frontmatter("---\n# alwaysApply: true\nmeta:\n  alwaysApply: true\n---\nalwaysApply: true\n"),
+                         {"meta": ""})
 
     def test_codex_modifier_renders_idempotently_and_keeps_local_text(self):
         with tempfile.TemporaryDirectory() as td:

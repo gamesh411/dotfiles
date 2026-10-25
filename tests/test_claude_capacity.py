@@ -1,12 +1,10 @@
-"""Offline checks for Claude's prompt-free quota capability probe."""
+"""Offline checks for Claude's cache-only quota reader."""
 import copy
 import importlib.util
 import json
 import os
 from pathlib import Path
-import sys
 import tempfile
-import time
 import unittest
 from unittest.mock import patch
 
@@ -21,179 +19,100 @@ PAYLOAD = {"five_hour": {"utilization": 20, "resets_at": claude._iso(NOW + 3600)
            "seven_day": {"utilization": 40, "resets_at": claude._iso(NOW + 86400)}}
 
 
-def snapshot(age=0, account="private-account", payload=None):
-    return {"observed_at": NOW - age, "account": account,
-            "payload": copy.deepcopy(PAYLOAD if payload is None else payload)}
-
-
-def response(**changes):
-    reply = {"session": {"total_cost_usd": 0}, "rate_limits_available": True,
-             "rate_limits": copy.deepcopy(PAYLOAD)}
-    reply.update(changes)
-    return json.dumps({"type": "control_response", "response": {
-        "request_id": "agent-capacity-quota", "subtype": "success", "response": reply}})
-
-
-class ClaudeCapacityTests(unittest.TestCase):
+class ClaudeCacheTests(unittest.TestCase):
     def setUp(self):
-        self.enterContext(patch.dict(os.environ, {}, clear=True))
+        self.directory = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": self.directory}, clear=True))
         self.enterContext(patch.object(claude.time, "time", return_value=NOW))
+        # Collect must read the cache only; any CLI launch is a contract violation.
+        self.launches = self.enterContext(patch("subprocess.Popen", side_effect=AssertionError("CLI launched")))
 
-    def collect(self, output=None, before=None, after=None):
-        with patch.object(claude, "read_native_snapshot", side_effect=[before, after]), \
-                patch.object(claude, "_capture", return_value=response() if output is None else output) as capture:
-            result = claude.collect(binary="future-claude")
-        return result, capture
+    def write_cache(self, age=0, account="private-account", cli_account=None, payload=None):
+        data = {"cachedUsageUtilization": {"accountUuid": account, "fetchedAtMs": int((NOW - age) * 1000),
+                                           "utilization": copy.deepcopy(PAYLOAD if payload is None else payload)},
+                "oauthAccount": {"accountUuid": account if cli_account is None else cli_account}}
+        (Path(self.directory) / ".config.json").write_text(json.dumps(data))
 
-    def test_unknown_future_version_uses_control_only_protocol(self):
-        # An executable claiming any future version can participate. It refuses
-        # everything except a single control request, with no prompt. Its help
-        # deliberately advertises no flags, as supported flags may be hidden.
-        with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / "claude"
-            executable.write_text(
-                "#!" + sys.executable + "\nimport json, sys\n"
-                "if sys.argv[1:] == ['--version']:\n    print('999.40.12 (Claude Code)')\n"
-                "elif sys.argv[1:] == ['--help']:\n    print('No public options')\n"
-                "else:\n"
-                "    assert '--input-format' in sys.argv and '--print' in sys.argv\n"
-                "    assert sys.argv[sys.argv.index('--tools') + 1] == ''\n"
-                "    messages = [json.loads(line) for line in sys.stdin]\n"
-                "    assert messages == [{'type': 'control_request', 'request_id': 'agent-capacity-quota', "
-                "'request': {'subtype': 'get_usage', 'skip_behaviors': True}}]\n"
-                "    print(" + repr(response()) + ")\n")
-            executable.chmod(0o700)
-            with patch.object(claude, "read_native_snapshot", side_effect=[None, snapshot()]):
-                result = claude.collect(binary=str(executable))
-        self.assertEqual(result["quota_status"], "known")
-        self.assertEqual(result["quota_source"], "native_control_usage")
-        self.assertEqual(result["native_model_requests"], 0)
-        self.assertNotIn("private-account", json.dumps(result))
-
-    def test_fresh_account_bound_cache_needs_no_cli_call(self):
-        with patch.object(claude, "read_native_snapshot", return_value=snapshot(10)), \
-                patch.object(claude, "_capture") as capture:
-            result = claude.collect(binary="unavailable")
-        capture.assert_not_called()
+    def test_fresh_account_bound_cache_is_known_without_launching_cli(self):
+        self.write_cache(age=10)
+        result = claude.collect()
+        self.launches.assert_not_called()
         self.assertEqual(result["quota_status"], "known")
         self.assertEqual(result["quota_source"], "native_usage_cache")
         self.assertEqual(result["age_seconds"], 10)
+        self.assertEqual(result["freshness"], "fresh")
         self.assertTrue(result["usage_account_matches_cli"])
+        self.assertNotIn("error", result)
+        windows = {window["name"]: window for window in result["windows"]}
+        self.assertEqual(windows["five_hour"]["remaining_percent"], 80)
+        self.assertEqual(windows["seven_day"]["remaining_percent"], 60)
 
-    def test_unsupported_flags_fail_without_a_weaker_retry(self):
-        with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / "claude"
-            executable.write_text("#!" + sys.executable + "\nimport sys\n"
-                                  "print('unknown option --safe-mode', file=sys.stderr)\n"
-                                  "sys.exit(2)\n")
-            executable.chmod(0o700)
-            with patch.object(claude, "read_native_snapshot", return_value=None), \
-                    patch.object(claude, "_capture", wraps=claude._capture) as capture:
-                result = claude.collect(binary=str(executable))
+    def test_stale_cache_is_reported_stale_and_not_refreshed(self):
+        self.write_cache(age=61)
+        result = claude.collect()
+        self.launches.assert_not_called()
+        self.assertEqual(result["quota_status"], "stale")
+        self.assertEqual(result["freshness"], "stale")
+        self.assertNotIn("known", {window["status"] for window in result["windows"]})
+
+    def test_future_dated_cache_is_not_fresh(self):
+        self.write_cache(age=-1)
+        result = claude.collect()
+        self.assertEqual(result["freshness"], "future")
+        self.assertNotEqual(result["quota_status"], "known")
+
+    def test_absent_cache_is_unknown_without_launching_cli(self):
+        result = claude.collect()
+        self.launches.assert_not_called()
         self.assertEqual(result["quota_status"], "unknown")
-        self.assertEqual(result["error"], "native_usage_failed")
-        self.assertEqual(capture.call_count, 1)
-        self.assertIn("--safe-mode", capture.call_args.args[0])
-        self.assertEqual(json.loads(capture.call_args.args[2])["type"], "control_request")
+        self.assertEqual(result["error"], "native_usage_cache_unavailable")
+        self.assertFalse(result["usage_account_matches_cli"])
 
-    def test_unsupported_control_request_is_unknown(self):
-        output = json.dumps({"type": "control_response", "response": {
-            "request_id": "agent-capacity-quota", "subtype": "error",
-            "error": "private account and token must not appear"}})
-        result, _ = self.collect(output=output)
-        self.assertEqual(result["error"], "native_usage_control_unsupported")
+    def test_cache_for_another_account_is_unknown(self):
+        self.write_cache(cli_account="another-account")
+        result = claude.collect()
         self.assertEqual(result["quota_status"], "unknown")
-        self.assertNotIn("private account", json.dumps(result))
+        self.assertEqual(result["error"], "native_usage_cache_unavailable")
+        self.assertNotIn("private-account", json.dumps(result))
 
-    def test_response_schema_and_zero_cost_are_required(self):
-        for output, error in (
-            (response(session={}), "native_usage_zero_cost_unverified"),
-            (response(session={"total_cost_usd": False}), "native_usage_zero_cost_unverified"),
-            (response(session={"total_cost_usd": 0.01}), "native_usage_zero_cost_unverified"),
-            (response(rate_limits_available=False), "native_usage_not_subscription_limits"),
-            (response(rate_limits=[]), "native_usage_limits_unavailable"),
-            ("{}", "native_usage_response_invalid"),
-            (response() + "\n" + response(), "native_usage_response_invalid")):
-            with self.subTest(error=error, output=output):
-                result, _ = self.collect(output=output)
+    def test_auth_and_provider_overrides_are_rejected(self):
+        self.write_cache(age=10)
+        for environment, error in (({"ANTHROPIC_API_KEY": "key"}, "native_auth_override_unsupported"),
+                                   ({"ANTHROPIC_BASE_URL": "https://proxy.example"}, "native_provider_override_unsupported")):
+            with self.subTest(environment=environment), patch.dict(os.environ, environment):
+                result = claude.collect()
                 self.assertEqual(result["quota_status"], "unknown")
                 self.assertEqual(result["error"], error)
 
-    def test_model_messages_and_nonzero_activity_are_rejected(self):
-        for activity in ({"type": "assistant"}, {"type": "user"}, {"type": "stream_event"},
-                         {"type": "result", "num_turns": 1, "total_cost_usd": 0},
-                         {"type": "result", "num_turns": 0, "total_cost_usd": 1}):
-            with self.subTest(activity=activity):
-                result, _ = self.collect(output=response() + "\n" + json.dumps(activity))
-                self.assertEqual(result["error"], "native_usage_unexpected_model_activity")
-
-    def test_result_metadata_must_verify_zero_activity(self):
-        result, _ = self.collect(output=response() + '\n{"type":"result"}')
-        self.assertEqual(result["error"], "native_usage_zero_cost_unverified")
-        result, _ = self.collect(output=response() + '\n{"type":"result","num_turns":0,"total_cost_usd":0}', after=snapshot())
-        self.assertEqual(result["quota_status"], "known")
-
-    def test_no_fresh_provenance_cannot_become_known(self):
-        for after, error in ((None, "native_usage_provenance_unavailable"),
-                             (snapshot(61), "native_usage_refresh_unverified"),
-                             (snapshot(-1), "native_usage_refresh_unverified")):
-            with self.subTest(after=after):
-                result, _ = self.collect(after=after)
-                self.assertNotEqual(result["quota_status"], "known")
-                self.assertEqual(result["error"], error)
-
-    def test_cache_and_response_measurements_must_match(self):
-        changed = copy.deepcopy(PAYLOAD)
-        changed["five_hour"]["utilization"] = 21
-        result, _ = self.collect(after=snapshot(payload=changed))
-        self.assertEqual(result["error"], "native_usage_cache_response_mismatch")
+    def test_expired_and_null_measurements_are_never_known(self):
+        payload = {"five_hour": {"utilization": 20, "resets_at": claude._iso(NOW - 1)},
+                   "seven_day": {"utilization": None, "resets_at": claude._iso(NOW + 86400)}}
+        self.write_cache(age=10, payload=payload)
+        result = claude.collect()
+        windows = {window["name"]: window for window in result["windows"]}
+        self.assertEqual(windows["five_hour"]["status"], "expired")
+        self.assertEqual(windows["seven_day"]["status"], "unknown")
         self.assertEqual(result["quota_status"], "unknown")
 
-    def test_account_change_during_probe_is_rejected(self):
-        result, _ = self.collect(before=snapshot(61), after=snapshot(account="another-account"))
-        self.assertEqual(result["error"], "native_usage_account_changed_during_probe")
-        self.assertEqual(result["quota_status"], "unknown")
-
-    def test_timeout_fallback_preserves_freshness_and_account_checks(self):
-        for after, status, error in (
-            (None, "unknown", "native_usage_timeout"),
-            (snapshot(61), "stale", "native_usage_timeout"),
-            (snapshot(), "known", "native_usage_timeout"),
-            (snapshot(account="different"), "unknown", "native_usage_account_changed_during_probe")):
-            with self.subTest(after=after), \
-                    patch.object(claude, "read_native_snapshot", side_effect=[snapshot(61), after]), \
-                    patch.object(claude, "_capture", side_effect=claude.ProbeError("native_usage_timeout")):
-                result = claude.collect()
-                self.assertEqual(result["quota_status"], status)
-                self.assertEqual(result["error"], error)
+    def test_weekly_scoped_model_window_keeps_its_scope(self):
+        payload = {"limits": [{"kind": "weekly_scoped", "percent": 30,
+                               "resets_at": claude._iso(NOW + 86400),
+                               "scope": {"model": {"id": "claude-opus-5", "display_name": "Opus"}}}]}
+        self.write_cache(age=10, payload=payload)
+        result = claude.collect()
+        [window] = [window for window in result["windows"] if window["name"] == "weekly_scoped_0"]
+        self.assertEqual((window["scope"], window["model_id"], window["remaining_percent"]), ("opus", "claude-opus-5", 70))
 
     def test_native_snapshot_rejects_different_account(self):
-        with tempfile.TemporaryDirectory() as directory, \
-                patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": directory}):
-            path = Path(directory) / ".config.json"
-            data = {"cachedUsageUtilization": {"accountUuid": "cache-account",
-                    "fetchedAtMs": NOW * 1000, "utilization": PAYLOAD},
-                    "oauthAccount": {"accountUuid": "another-account"}}
-            path.write_text(json.dumps(data))
-            self.assertIsNone(claude.read_native_snapshot())
-            data["oauthAccount"]["accountUuid"] = "cache-account"
-            path.write_text(json.dumps(data))
-            self.assertEqual(claude.read_native_snapshot()["observed_at"], NOW)
-
-    def test_probe_is_single_bounded_control_call_without_help_or_version(self):
-        result, capture = self.collect(after=snapshot())
-        self.assertEqual(result["quota_status"], "known")
-        self.assertEqual(capture.call_count, 1)
-        self.assertLessEqual(capture.call_args.args[1], time.monotonic() + 15)
-        self.assertFalse(any("--help" in call.args[0] for call in capture.call_args_list))
-        self.assertFalse(any("--version" in call.args[0] for call in capture.call_args_list))
-
-    def test_real_subprocess_timeout_is_bounded(self):
-        started = time.monotonic()
-        with self.assertRaises(claude.ProbeError) as error:
-            claude._capture([sys.executable, "-c", "import time; time.sleep(10)"], started + 0.1)
-        self.assertEqual(error.exception.code, "native_usage_timeout")
-        self.assertLess(time.monotonic() - started, 2)
+        path = Path(self.directory) / ".config.json"
+        data = {"cachedUsageUtilization": {"accountUuid": "cache-account",
+                "fetchedAtMs": NOW * 1000, "utilization": PAYLOAD},
+                "oauthAccount": {"accountUuid": "another-account"}}
+        path.write_text(json.dumps(data))
+        self.assertIsNone(claude.read_native_snapshot())
+        data["oauthAccount"]["accountUuid"] = "cache-account"
+        path.write_text(json.dumps(data))
+        self.assertEqual(claude.read_native_snapshot()["observed_at"], NOW)
 
 
 if __name__ == "__main__":

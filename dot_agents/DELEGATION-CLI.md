@@ -67,12 +67,8 @@ For machine-checked output, add `--json-schema '<schema>'` and inspect `structur
 Choose an alias accepted by the installed client and inspect the returned model identity.
 An alias is not a promise of a particular model generation.
 
-Claude quota probing uses a bounded native `get_usage` control request with no user message or model prompt.
-The helper disables tools, hooks, MCP servers, session persistence, and permission prompts for that request.
-It validates the response schema, zero model cost, native account identity, matching measured windows, and cache freshness.
-Support is detected from command acceptance and response behavior, with no exact CLI-version or help-text allowlist.
-Changed flags, rejected requests, malformed responses, or missing provenance produce sanitized unknown quota without a weaker retry.
-A fresh account-bound native cache can provide measurements when the live interface is unavailable.
+Claude quota reads only Claude's native account-bound usage cache. The helper never launches the CLI, sends a control request, or sends a model prompt for quota.
+It checks that the cache account matches the signed-in CLI account and that the cache is fresh; a stale or absent cache is reported as stale or unknown and is not refreshed here.
 Unknown quota does not block a bounded worker request through a working authenticated client.
 Never guess that an unverified `/usage` prompt will stay local.
 `--max-budget-usd` is not a subscription-allowance guard.
@@ -92,7 +88,7 @@ On Windows, PowerShell runs `agent-capacity.cmd` from that directory, which call
 Git Bash runs the extensionless script when `python3` is on PATH.
 macOS is live-tested.
 Linux paths are implemented but not live-tested.
-Windows was live-tested on 2026-10-14: Codex app-server, Cursor usage, and Claude native control quota all returned without a model turn.
+Windows was live-tested on 2026-10-14 for Codex app-server and Cursor usage without a model turn.
 
 Sign in to each provider locally on each machine. Credentials, usage snapshots, trust decisions, and native runtime caches stay on that machine; this helper adds no persistent cache or credentials to chezmoi. Cursor workspace trust remains a separate decision for the intended directory. Updating chezmoi source locally does not publish it to the Git remote.
 
@@ -117,7 +113,7 @@ Custom shared skills and delegation policy remain in chezmoi instead of being ov
 
 The compact delegation hint has one source, `.chezmoitemplates/delegation-hint.md` in chezmoi.
 Native global instruction files render the same text near their beginning for Codex, Claude Code, Cursor, Kiro, Gemini, Copilot, and Pi.
-OpenCode explicitly loads the same rendered `~/.agents/DELEGATION-HINT.md` through its instructions setting.
+OpenCode loads the same rendered `~/.agents/DELEGATION-HINT.md` first, then the full `~/.agents/DELEGATION.md`, through its instructions setting.
 The home `AGENTS.md` renders the Claude instructions for clients that consume that file.
 Capacity hooks add live status; the standing instruction is present even if a quota probe fails.
 Keep worker recursion suppression in both the shared hint and the capacity hook.

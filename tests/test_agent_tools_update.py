@@ -72,8 +72,26 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(argv[:3], [self.paths["npm"], "install", "--global"])
         self.assertEqual(set(argv[3:]), {name + "@latest" for name in (
             "@earendil-works/pi-coding-agent", "gh-axi", "cavemem", "tasks-axi")})
-        self.assertFalse(report["latest_verified"])
         self.assertTrue(all(timeout <= 20 for _, timeout in self.calls))
+
+    def test_npm_inventory_with_problem_entries_still_updates_owned_tools(self):
+        self.npm_package("@openai/codex")
+        inventory = json.dumps({"dependencies": self.packages, "problems": ["invalid: example@1.0.0"]})
+
+        def runner(argv, timeout):
+            if argv[1:] == ["list", "--global", "--depth=0", "--json"]:
+                return result(False, stdout=inventory)
+            return self.runner(argv, timeout)
+
+        report = self.plan(runner=runner)
+        self.assertEqual(report["manual"], [])
+        self.assertEqual(report["actions"][0]["argv"][3:], ["@openai/codex@latest"])
+
+    def test_unparseable_npm_inventory_is_manual_even_when_listing_exits_zero(self):
+        self.npm_package("@openai/codex")
+        report = self.plan(runner=lambda argv, timeout: result(stdout="not json") if argv[1:] == ["list", "--global", "--depth=0", "--json"] else self.runner(argv, timeout))
+        self.assertEqual(report["actions"], [])
+        self.assertEqual({row["reason"] for row in report["manual"]}, {"global_inventory_unavailable", "installation_owner_unknown"})
 
     def test_shadowed_npm_package_is_manual_not_updated(self):
         self.npm_package("@openai/codex")
@@ -166,20 +184,17 @@ class UpdaterTests(unittest.TestCase):
         report = {"actions": [{"id": "native-no-mistakes", "argv": ["no-mistakes", "update"]}], "manual": []}
         applied = updater.apply(report, runner=lambda argv, timeout: result(False))
         self.assertFalse(applied["complete"])
-        self.assertFalse(applied["latest_verified"])
         self.assertEqual(applied["results"][0]["reason"], "command_failed")
 
     def test_success_evidence_and_manual_action_affect_completion(self):
         report = {"actions": [{"id": "npm", "argv": ["npm", "install", "--global", "gh-axi@latest"]}], "manual": []}
         applied = updater.apply(report, runner=self.runner)
         self.assertTrue(applied["complete"])
-        self.assertTrue(applied["update_commands_succeeded"])
-        self.assertFalse(applied["latest_verified"])
         report["manual"] = [{"tool": "claude", "reason": "installation_owner_unknown"}]
         self.assertFalse(updater.apply(report, runner=self.runner)["complete"])
 
     def test_default_cli_is_plan_and_incomplete_apply_exits_nonzero(self):
-        report = {"mode": "plan", "actions": [], "manual": [], "complete": False, "latest_verified": False}
+        report = {"mode": "plan", "actions": [], "manual": [], "complete": False}
         with patch.object(updater, "plan", return_value=report), patch.object(updater, "apply") as apply:
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(updater.main(["--json"]), 0)
@@ -235,7 +250,7 @@ class UpdaterTests(unittest.TestCase):
                 updater.run_live(["fake", "update"], 10)
             killpg.assert_called_once_with(12345, signal.SIGKILL)
             self.assertEqual(process.wait.call_args_list[-1].kwargs, {"timeout": 2})
-        report = {"mode": "plan", "actions": [], "manual": [], "latest_verified": False}
+        report = {"mode": "plan", "actions": [], "manual": []}
         with patch.object(updater, "plan", return_value=report), \
                 patch.object(updater, "apply", side_effect=KeyboardInterrupt()), \
                 contextlib.redirect_stdout(io.StringIO()) as output, \
@@ -268,8 +283,7 @@ class UpdaterTests(unittest.TestCase):
         report = json.loads(completed.stdout)
         self.assertIn("Confirm update?", completed.stderr)
         self.assertIn("Update cancelled: cancel", completed.stderr)
-        self.assertTrue(report["update_commands_succeeded"])
-        self.assertFalse(report["latest_verified"])
+        self.assertTrue(report["complete"])
 
     def test_windows_scope_is_explicit_manual_action(self):
         with patch.object(updater.os, "name", "nt"):

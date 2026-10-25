@@ -80,7 +80,7 @@ def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve
     if os.name != "posix":
         return {"mode": "plan", "actions": [], "manual": [
             {"tool": "platform", "reason": "posix_updater_required_windows_shims_unverified"}],
-                "complete": False, "latest_verified": False}
+                "complete": False}
     actions, manual, handled = [], [], set()
 
     def problem(tool, reason):
@@ -91,7 +91,8 @@ def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve
         inventory = runner([npm, "list", "--global", "--depth=0", "--json"], 20)
         root_result = runner([npm, "root", "--global"], 20)
         try:
-            if not inventory["ok"] or not root_result["ok"]:
+            # npm list exits nonzero for problem entries while still printing the inventory.
+            if not root_result["ok"]:
                 raise ValueError
             dependencies = json.loads(inventory["stdout"])["dependencies"]
             root_text = root_result["stdout"].strip()
@@ -165,8 +166,7 @@ def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve
                 problem("firstmate", "checkout_dirty_or_upstream_unavailable")
         else:
             problem("firstmate", "git_unavailable")
-    return {"mode": "plan", "actions": actions, "manual": manual,
-            "complete": False, "latest_verified": False}
+    return {"mode": "plan", "actions": actions, "manual": manual, "complete": False}
 
 
 def apply(report, runner=run_live, timeout=600):
@@ -183,11 +183,9 @@ def apply(report, runner=run_live, timeout=600):
             report["results"][-1]["retry_argv"] = action["argv"]
         if result["ok"]:
             succeeded.add(action["id"])
-    report["complete"] = not report["manual"] and all(row["ok"] for row in report["results"])
-    report["update_commands_succeeded"] = bool(report["results"]) and all(row["ok"] for row in report["results"])
     # A native updater may return zero after cancellation or a no-op. Exit
     # status proves command completion, not the installed upstream version.
-    report["latest_verified"] = False
+    report["complete"] = not report["manual"] and all(row["ok"] for row in report["results"])
     return report
 
 
@@ -212,8 +210,7 @@ def main(argv=None):
         try:
             report = apply(report, timeout=args.timeout)
         except KeyboardInterrupt:
-            report = {**report, "mode": "apply", "complete": False,
-                      "latest_verified": False, "interrupted": True}
+            report = {**report, "mode": "apply", "complete": False, "interrupted": True}
             if args.json:
                 print(json.dumps(report, indent=2))
             print("Update interrupted; remaining updates were not started.", file=sys.stderr)

@@ -80,7 +80,7 @@ def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve
     if os.name != "posix":
         return {"mode": "plan", "actions": [], "manual": [
             {"tool": "platform", "reason": "posix_updater_required_windows_shims_unverified"}],
-                "complete": False}
+                "commands_exited_successfully": False}
     actions, manual, handled = [], [], set()
 
     def problem(tool, reason):
@@ -166,7 +166,7 @@ def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve
                 problem("firstmate", "checkout_dirty_or_upstream_unavailable")
         else:
             problem("firstmate", "git_unavailable")
-    return {"mode": "plan", "actions": actions, "manual": manual, "complete": False}
+    return {"mode": "plan", "actions": actions, "manual": manual, "commands_exited_successfully": False}
 
 
 def apply(report, runner=run_live, timeout=600):
@@ -183,9 +183,9 @@ def apply(report, runner=run_live, timeout=600):
             report["results"][-1]["retry_argv"] = action["argv"]
         if result["ok"]:
             succeeded.add(action["id"])
-    # A native updater may return zero after cancellation or a no-op. Exit
-    # status proves command completion, not the installed upstream version.
-    report["complete"] = not report["manual"] and all(row["ok"] for row in report["results"])
+    # A native updater may return zero after cancellation or a no-op, so this
+    # only records exit codes, not the installed upstream version.
+    report["commands_exited_successfully"] = all(row["ok"] for row in report["results"])
     return report
 
 
@@ -210,7 +210,7 @@ def main(argv=None):
         try:
             report = apply(report, timeout=args.timeout)
         except KeyboardInterrupt:
-            report = {**report, "mode": "apply", "complete": False, "interrupted": True}
+            report = {**report, "mode": "apply", "commands_exited_successfully": False, "interrupted": True}
             if args.json:
                 print(json.dumps(report, indent=2))
             print("Update interrupted; remaining updates were not started.", file=sys.stderr)
@@ -227,10 +227,10 @@ def main(argv=None):
             print("  " + row["id"] + ": " + ("succeeded" if row["ok"] else row["reason"]))
             if row.get("retry_argv"):
                 print("  Rerun: " + shlex.join(row["retry_argv"]))
-        print("Update commands exited successfully; latest versions remain unverified." if report["mode"] == "apply" and report["complete"]
+        print("Update commands exited successfully; latest versions remain unverified." if report["mode"] == "apply" and report["commands_exited_successfully"]
               else "Planning does not verify latest versions." if report["mode"] == "plan"
               else "Update incomplete; review failed or manual actions.")
-    return 1 if report["manual"] or (args.apply and not report["complete"]) else 0
+    return 1 if report["manual"] or (args.apply and not report["commands_exited_successfully"]) else 0
 
 
 if __name__ == "__main__":

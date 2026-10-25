@@ -6,7 +6,7 @@ Run from the chezmoi source checkout:
 python3 -B -m unittest discover -s tests -v
 ```
 
-The tests execute the real chezmoi renderer and the generated Codex modifier, inspect the hook's emitted context, and exercise quota and updater behavior through controlled native-process fixtures.
+The tests execute the real chezmoi renderer and the generated Codex modifier, inspect the hook's emitted context, and exercise Claude quota against native cache fixtures and updater behavior through controlled fake executables.
 They make no model requests and perform no package upgrades.
 Chezmoi must be installed for the instruction-rendering checks.
 

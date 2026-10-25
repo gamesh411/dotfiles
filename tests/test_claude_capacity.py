@@ -47,8 +47,18 @@ class ClaudeCacheTests(unittest.TestCase):
         self.assertEqual(windows["five_hour"]["remaining_percent"], 80)
         self.assertEqual(windows["seven_day"]["remaining_percent"], 60)
 
+    def test_cache_is_fresh_up_to_ten_minutes_and_stale_after(self):
+        self.write_cache(age=600)
+        self.assertEqual(claude.collect()["quota_status"], "known")
+        self.write_cache(age=601)
+        result = claude.collect()
+        self.launches.assert_not_called()
+        self.assertEqual(result["quota_status"], "stale")
+        self.assertEqual(result["freshness"], "stale")
+        self.assertNotIn("known", {window["status"] for window in result["windows"]})
+
     def test_stale_cache_is_reported_stale_and_not_refreshed(self):
-        self.write_cache(age=61)
+        self.write_cache(age=601)
         result = claude.collect()
         self.launches.assert_not_called()
         self.assertEqual(result["quota_status"], "stale")

@@ -35,8 +35,8 @@ Compare the windows that actually apply to the chosen model. The smaller remaini
 
 Probe results describe the current process environment. A sandbox may prevent access to a working host login. If permitted, retry the read-only probe through the host's normal approval flow; otherwise keep that route unavailable in this context.
 
-The helper reads Codex limits through its CLI app-server, Claude through a bounded control-only native usage request, and Cursor through its first-party usage endpoint using the native session.
-It checks response shape, freshness, and account identity rather than an exact CLI-version allowlist.
+The helper reads Codex limits through its CLI app-server, Claude from its native account-bound usage cache without launching the CLI, and Cursor through its first-party usage endpoint using the native session.
+It checks cache freshness, account identity, and response shape rather than an exact CLI-version allowlist.
 An unsupported interface makes that quota source unknown; it does not make an otherwise usable worker ineligible.
 Follow the provider notes in `~/.agents/DELEGATION-CLI.md` when a source is unavailable.
 A CLI login status or accumulated token cost is not remaining plan allowance.

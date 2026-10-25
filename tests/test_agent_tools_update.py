@@ -177,24 +177,24 @@ class UpdaterTests(unittest.TestCase):
         applied = updater.apply(report, runner=fail)
         self.assertEqual(calls, [["brew", "update"]])
         self.assertEqual(applied["results"][1]["reason"], "dependency_failed")
-        self.assertFalse(applied["complete"])
+        self.assertFalse(applied["commands_exited_successfully"])
         self.assertNotIn("SECRET", json.dumps(applied))
 
     def test_native_active_run_refusal_is_preserved(self):
         report = {"actions": [{"id": "native-no-mistakes", "argv": ["no-mistakes", "update"]}], "manual": []}
         applied = updater.apply(report, runner=lambda argv, timeout: result(False))
-        self.assertFalse(applied["complete"])
+        self.assertFalse(applied["commands_exited_successfully"])
         self.assertEqual(applied["results"][0]["reason"], "command_failed")
 
-    def test_success_evidence_and_manual_action_affect_completion(self):
+    def test_commands_exit_status_is_the_only_success_signal(self):
         report = {"actions": [{"id": "npm", "argv": ["npm", "install", "--global", "gh-axi@latest"]}], "manual": []}
         applied = updater.apply(report, runner=self.runner)
-        self.assertTrue(applied["complete"])
+        self.assertTrue(applied["commands_exited_successfully"])
         report["manual"] = [{"tool": "claude", "reason": "installation_owner_unknown"}]
-        self.assertFalse(updater.apply(report, runner=self.runner)["complete"])
+        self.assertTrue(updater.apply(report, runner=self.runner)["commands_exited_successfully"])
 
     def test_default_cli_is_plan_and_incomplete_apply_exits_nonzero(self):
-        report = {"mode": "plan", "actions": [], "manual": [], "complete": False}
+        report = {"mode": "plan", "actions": [], "manual": [], "commands_exited_successfully": False}
         with patch.object(updater, "plan", return_value=report), patch.object(updater, "apply") as apply:
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(updater.main(["--json"]), 0)
@@ -257,7 +257,7 @@ class UpdaterTests(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as errors:
             self.assertEqual(updater.main(["--apply", "--json"]), 130)
         self.assertTrue(json.loads(output.getvalue())["interrupted"])
-        self.assertFalse(json.loads(output.getvalue())["complete"])
+        self.assertFalse(json.loads(output.getvalue())["commands_exited_successfully"])
         self.assertIn("remaining updates were not started", errors.getvalue())
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
@@ -283,7 +283,7 @@ class UpdaterTests(unittest.TestCase):
         report = json.loads(completed.stdout)
         self.assertIn("Confirm update?", completed.stderr)
         self.assertIn("Update cancelled: cancel", completed.stderr)
-        self.assertTrue(report["complete"])
+        self.assertTrue(report["commands_exited_successfully"])
 
     def test_windows_scope_is_explicit_manual_action(self):
         with patch.object(updater.os, "name", "nt"):

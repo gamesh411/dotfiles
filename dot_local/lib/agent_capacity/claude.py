@@ -15,7 +15,7 @@ import re
 import time
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
-FRESH_SECONDS = 60
+FRESH_SECONDS = 600
 
 
 class ProbeError(Exception):
@@ -105,8 +105,8 @@ def normalize_usage(payload, observed_at=None, now=None):
         family = label.lower() if label and label.lower() in ("haiku", "sonnet", "opus") else label or "unknown_model"
         add("weekly_scoped_" + str(index), entry, 10080, family, "percent", model_id)
         scoped.append((label, _percent(entry.get("percent")), _reset(entry.get("resets_at"))))
-    # Native get_usage can project scoped rows without the raw limits[] on a
-    # seeded reply. Include them for display; cache freshness still gates routing.
+    # The cached payload can carry scoped rows without the raw limits[]. Include
+    # them for display; cache freshness still gates routing.
     projected = payload.get("model_scoped")
     if isinstance(projected, list):
         for index, entry in enumerate(projected[:100]):

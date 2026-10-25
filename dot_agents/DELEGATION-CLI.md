@@ -68,7 +68,7 @@ Choose an alias accepted by the installed client and inspect the returned model 
 An alias is not a promise of a particular model generation.
 
 Claude quota reads only Claude's native account-bound usage cache. The helper never launches the CLI, sends a control request, or sends a model prompt for quota.
-It checks that the cache account matches the signed-in CLI account and that the cache is fresh; a stale or absent cache is reported as stale or unknown and is not refreshed here.
+It checks that the cache account matches the signed-in CLI account and that the cache is no older than ten minutes; an older or absent cache is reported as stale or unknown and is not refreshed here.
 Unknown quota does not block a bounded worker request through a working authenticated client.
 Never guess that an unverified `/usage` prompt will stay local.
 `--max-budget-usd` is not a subscription-allowance guard.
@@ -106,7 +106,7 @@ Run `agent-tools-update` to inspect the update plan and `agent-tools-update --ap
 The updater supports macOS and Linux, follows active npm, Homebrew, or native CLI ownership, and resolves current releases at execution time.
 On Windows it reports an explicit manual update requirement rather than guessing ownership of npm command shims.
 It reports failed or unsupported updates instead of treating an installed binary as current.
-A successful updater exit records command completion; inspect native output for declined or skipped updates before claiming a tool is current.
+A zero updater exit only means the observed update commands exited zero; inspect native output for declined or skipped updates, and verify versions independently, before claiming a tool is current.
 The chezmoi apply scripts still install missing prerequisites; they do not upgrade existing binaries on every dotfile apply.
 Bundled AXI skills follow their npm package updates.
 Custom shared skills and delegation policy remain in chezmoi instead of being overwritten by a blanket skills update.

@@ -50,7 +50,7 @@ def _model_version(value):
 
 
 def _cursor_effort(model_id):
-    match = re.fullmatch(r"(?:cursor-)?grok-4\.[567]-(low|medium|high|xhigh)-fast", model_id)
+    match = re.fullmatch(r"(?:cursor-)?grok-\d+(?:\.\d+)*-(low|medium|high|xhigh)-fast", model_id)
     return match.group(1) if match else None
 
 
@@ -194,7 +194,7 @@ def _candidates(provider):
                 yield entry, match.group(1), True
     elif name == "cursor":
         for entry in entries:
-            if re.fullmatch(r"(?:cursor-)?grok-4\.[567]-(?:[a-z]+-)*fast", entry["id"]):
+            if re.fullmatch(r"(?:cursor-)?grok-\d+(?:\.\d+)*-(?:[a-z]+-)*fast", entry["id"]):
                 yield entry, "grok_fast", True
             elif entry["id"] in ("auto", "router"):
                 yield entry, "router", True

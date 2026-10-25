@@ -6,10 +6,15 @@ Use deterministic tools for arithmetic, parsing, and transformations with explic
 
 This is the user's standing preference across local agents. It authorizes using the installed Codex, Cursor, and Claude CLIs for subtasks within the current request. Keep the user's chosen lead model. Follow the current host's tool, permission, and data-access boundaries when starting another CLI.
 
+Apply this preference equally when the lead is Codex, Claude, Cursor, or another supported client.
+Choose workers by their observed capabilities, authentication, and task fit.
+CLI version numbers are diagnostic information, never an eligibility gate.
+Unknown quota does not prohibit delegation: use a bounded authorized worker when appropriate and report that its remaining capacity is unknown.
+
 ## Choose the worker
 
 1. Define a deliverable and a cheap way to check it. Give visual workers approved design decisions or a reference; keep new visual direction and editorial judgment with the lead.
-2. Before a delegation batch, run `~/.local/bin/agent-capacity --json --task routine`, choosing `tiny`, `routine`, or `substantial` for the assignment. Reuse that result within the same batch for up to ten minutes. Refresh after a limit error or a substantial run. For one provider, add `--provider codex`, `cursor`, or `claude`. Read `routing.recommended` and its evidence; a null recommendation means no route has verified fresh capacity. Read provider status, model list, quota source, remaining windows, reset times, and observation timestamp before choosing a manual fallback.
+2. Before a delegation batch, run `~/.local/bin/agent-capacity --json --task routine`, choosing `tiny`, `routine`, or `substantial` for the assignment. Reuse that result within the same batch for up to ten minutes. Refresh after a limit error or a substantial run. For one provider, add `--provider codex`, `cursor`, or `claude`. Read `routing.recommended` and its evidence; a null recommendation means the helper cannot make an automatic choice, so choose a bounded worker manually from the available native agents or authenticated CLIs. Read provider status, model list, quota source, remaining windows, reset times, and observation timestamp before that choice.
 3. Choose the least expensive available model likely to pass the checks. Prefer included subscription capacity over metered API usage. Treat the table as the user's routing preference, not a benchmark or guaranteed price ranking.
 
 | Work | Preferred route |
@@ -30,7 +35,13 @@ Compare the windows that actually apply to the chosen model. The smaller remaini
 
 Probe results describe the current process environment. A sandbox may prevent access to a working host login. If permitted, retry the read-only probe through the host's normal approval flow; otherwise keep that route unavailable in this context.
 
-The helper reads Codex limits through its CLI app-server, Claude through its verified native local usage interface, and Cursor through its first-party usage endpoint using the native session. Follow the provider notes in `~/.agents/DELEGATION-CLI.md` when a source is unavailable. A CLI login status or accumulated token cost is not remaining plan allowance. Do not spend an inference merely to ask a model for its own quota. Do not enable paid overages, purchase credits, redeem resets, or change billing to complete a delegation.
+The helper reads Codex limits through its CLI app-server, Claude from its native account-bound usage cache without launching the CLI, and Cursor through its first-party usage endpoint using the native session.
+It checks cache freshness, account identity, and response shape rather than an exact CLI-version allowlist.
+An unsupported interface makes that quota source unknown; it does not make an otherwise usable worker ineligible.
+Follow the provider notes in `~/.agents/DELEGATION-CLI.md` when a source is unavailable.
+A CLI login status or accumulated token cost is not remaining plan allowance.
+Do not spend an inference merely to ask a model for its own quota.
+Do not enable paid overages, purchase credits, redeem resets, or change billing to complete a delegation.
 
 ## Dispatch and accept
 

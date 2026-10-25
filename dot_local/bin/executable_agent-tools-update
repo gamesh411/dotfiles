@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""Explicit, installation-owner-aware updates for installed agentic tools."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import shlex
+import signal
+import subprocess
+import sys
+
+
+NPM_TOOLS = {
+    "@earendil-works/pi-coding-agent": "pi", "@mariozechner/pi-coding-agent": "pi",
+    "cavemem": "cavemem", "gnhf": "gnhf", "gh-axi": "gh-axi",
+    "lavish-axi": "lavish-axi", "chrome-devtools-axi": "chrome-devtools-axi",
+    "tasks-axi": "tasks-axi", "@openai/codex": "codex",
+    "@anthropic-ai/claude-code": "claude", "@google/gemini-cli": "gemini",
+    "@github/copilot": "copilot", "opencode-ai": "opencode",
+}
+NATIVE_TOOLS = ("cursor-agent", "treehouse", "no-mistakes", "kiro-cli")
+
+
+def run(argv, timeout):
+    """Capture read-only discovery output privately."""
+    try:
+        completed = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
+                                   check=False)
+        return {"ok": completed.returncode == 0, "code": completed.returncode,
+                "stdout": completed.stdout, "reason": None if completed.returncode == 0 else "command_failed"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "code": None, "stdout": "", "reason": "timeout"}
+    except OSError:
+        return {"ok": False, "code": None, "stdout": "", "reason": "unavailable"}
+
+
+def run_live(argv, timeout):
+    """Inherit input for native prompts; keep all child output off JSON stdout."""
+    try:
+        process = subprocess.Popen(argv, stdin=None, stdout=sys.stderr, stderr=sys.stderr,
+                                   start_new_session=os.name == "posix")
+    except OSError:
+        return {"ok": False, "code": None, "reason": "unavailable"}
+    try:
+        code = process.wait(timeout=timeout)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt) as interrupted:
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            if isinstance(interrupted, KeyboardInterrupt):
+                raise interrupted
+            return {"ok": False, "code": None, "reason": "timeout_cleanup_unverified"}
+        if isinstance(interrupted, KeyboardInterrupt):
+            raise interrupted
+        return {"ok": False, "code": None, "reason": "timeout"}
+    return {"ok": code == 0, "code": code, "reason": None if code == 0 else "command_failed"}
+
+
+def inside(path, directory):
+    return path == directory or directory in path.parents
+
+
+def brew_owner(path):
+    for ancestor in path.parents:
+        if ancestor.parent.name in ("Caskroom", "Cellar"):
+            return (ancestor.parent.parent, "--cask" if ancestor.parent.name == "Caskroom" else "--formula", ancestor.name)
+    return None
+
+
+def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve(), home=None):
+    if os.name != "posix":
+        return {"mode": "plan", "actions": [], "manual": [
+            {"tool": "platform", "reason": "posix_updater_required_windows_shims_unverified"}],
+                "commands_exited_successfully": False}
+    actions, manual, handled = [], [], set()
+
+    def problem(tool, reason):
+        manual.append({"tool": tool, "reason": reason})
+
+    npm = which("npm")
+    if npm:
+        inventory = runner([npm, "list", "--global", "--depth=0", "--json"], 20)
+        root_result = runner([npm, "root", "--global"], 20)
+        try:
+            # npm list exits nonzero for problem entries while still printing the inventory.
+            if not root_result["ok"]:
+                raise ValueError
+            dependencies = json.loads(inventory["stdout"])["dependencies"]
+            root_text = root_result["stdout"].strip()
+            if not isinstance(dependencies, dict) or not Path(root_text).is_absolute() or "\n" in root_text:
+                raise ValueError
+            root = resolve(root_text)
+        except (ValueError, KeyError, TypeError):
+            problem("npm", "global_inventory_unavailable")
+            dependencies = {}
+        packages = []
+        for package, binary in NPM_TOOLS.items():
+            if package not in dependencies:
+                continue
+            executable = which(binary)
+            if executable and inside(resolve(executable), root / package):
+                packages.append(package + "@latest")
+                handled.add(binary)
+            else:
+                problem(package, "global_package_inactive_or_shadowed")
+        if packages:
+            actions.append({"id": "npm", "tools": packages,
+                            "argv": [npm, "install", "--global"] + packages})
+
+    brew_groups = {}
+    for binary in sorted(set(NPM_TOOLS.values()) | set(NATIVE_TOOLS)):
+        executable = which(binary)
+        if not executable or binary in handled:
+            continue
+        owner = brew_owner(resolve(executable))
+        if owner:
+            prefix, kind, package = owner
+            brew = prefix / "bin/brew"
+            if not brew.is_file():
+                problem(binary, "owning_homebrew_unavailable")
+                continue
+            brew_groups.setdefault(str(brew), {}).setdefault(kind, set()).add(package)
+        elif binary in NATIVE_TOOLS:
+            # A missing npm inventory must not turn a global npm installation
+            # into an assumed native install.
+            if "node_modules" in resolve(executable).parts:
+                problem(binary, "npm_owner_unverified")
+                continue
+            help_result = runner([executable, "--help"], 15)
+            if help_result["ok"] and "--help-all" in help_result["stdout"]:
+                help_result = runner([executable, "--help-all"], 15)
+            if help_result["ok"] and re.search(r"^\s+update(?:\s|\[|$)", help_result["stdout"], re.M):
+                actions.append({"id": "native-" + binary, "tools": [binary],
+                                "argv": [executable, "update"]})
+            else:
+                problem(binary, "native_update_not_advertised")
+        else:
+            problem(binary, "installation_owner_unknown")
+
+    for index, (brew, groups) in enumerate(sorted(brew_groups.items())):
+        update_id = "brew-update-" + str(index)
+        actions.append({"id": update_id, "tools": ["Homebrew metadata"], "argv": [brew, "update"]})
+        for kind, packages in sorted(groups.items()):
+            actions.append({"id": "brew-" + str(index) + kind, "tools": sorted(packages),
+                            "requires": update_id, "argv": [brew, "upgrade", kind] + sorted(packages)})
+    firstmate = (Path.home() if home is None else Path(home)) / "firstmate"
+    if (firstmate / ".git").exists():
+        git = which("git")
+        if git:
+            status = runner([git, "-C", str(firstmate), "status", "--porcelain"], 15)
+            upstream = runner([git, "-C", str(firstmate), "rev-parse", "--abbrev-ref",
+                               "--symbolic-full-name", "@{upstream}"], 15)
+            if status["ok"] and not status["stdout"].strip() and upstream["ok"] and upstream["stdout"].strip():
+                actions.append({"id": "firstmate", "tools": ["firstmate"],
+                                "argv": [git, "-C", str(firstmate), "pull", "--ff-only"]})
+            else:
+                problem("firstmate", "checkout_dirty_or_upstream_unavailable")
+        else:
+            problem("firstmate", "git_unavailable")
+    return {"mode": "plan", "actions": actions, "manual": manual, "commands_exited_successfully": False}
+
+
+def apply(report, runner=run_live, timeout=600):
+    report = {**report, "mode": "apply", "results": []}
+    succeeded = set()
+    for action in report["actions"]:
+        if action.get("requires") and action["requires"] not in succeeded:
+            result = {"ok": False, "code": None, "reason": "dependency_failed"}
+        else:
+            result = runner(action["argv"], timeout)
+        report["results"].append({"id": action["id"], "ok": result["ok"],
+                                  "code": result["code"], "reason": result["reason"]})
+        if not result["ok"]:
+            report["results"][-1]["retry_argv"] = action["argv"]
+        if result["ok"]:
+            succeeded.add(action["id"])
+    # A native updater may return zero after cancellation or a no-op, so this
+    # only records exit codes, not the installed upstream version.
+    report["commands_exited_successfully"] = all(row["ok"] for row in report["results"])
+    return report
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, epilog=(
+        "Default: inspect and print a plan; this does not verify latest versions. "
+        "--apply runs explicit updater commands with visible prompts on stderr and inherited stdin. "
+        "Successful exit codes do not independently verify latest versions; "
+        "npm bundled skills follow their package. Install-if-missing chezmoi hooks remain separate. "
+        "Unknown or shadowed owners require manual action. Native updater refusals are preserved. "
+        "This updater supports POSIX installations; Windows npm shims require manual updates."))
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--plan", action="store_true", help="print the update plan (default)")
+    modes.add_argument("--apply", action="store_true", help="execute the checked update plan")
+    parser.add_argument("--json", action="store_true", help="print sanitized machine-readable plan/results")
+    parser.add_argument("--timeout", type=int, default=600, help="per-update timeout in seconds (default: 600)")
+    args = parser.parse_args(argv)
+    if not 1 <= args.timeout <= 3600:
+        parser.error("--timeout must be between 1 and 3600 seconds")
+    report = plan()
+    if args.apply:
+        try:
+            report = apply(report, timeout=args.timeout)
+        except KeyboardInterrupt:
+            report = {**report, "mode": "apply", "commands_exited_successfully": False, "interrupted": True}
+            if args.json:
+                print(json.dumps(report, indent=2))
+            print("Update interrupted; remaining updates were not started.", file=sys.stderr)
+            return 130
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print("Agentic tool update " + report["mode"])
+        for action in report["actions"]:
+            print("  " + " ".join(action["argv"]))
+        for row in report["manual"]:
+            print("  Manual: " + row["tool"] + " (" + row["reason"] + ")")
+        for row in report.get("results", []):
+            print("  " + row["id"] + ": " + ("succeeded" if row["ok"] else row["reason"]))
+            if row.get("retry_argv"):
+                print("  Rerun: " + shlex.join(row["retry_argv"]))
+        print("Update commands exited successfully; latest versions remain unverified." if report["mode"] == "apply" and report["commands_exited_successfully"]
+              else "Planning does not verify latest versions." if report["mode"] == "plan"
+              else "Update incomplete; review failed or manual actions.")
+    return 1 if report["manual"] or (args.apply and not report["commands_exited_successfully"]) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

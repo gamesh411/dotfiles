@@ -2,3 +2,7 @@
 # They are transient and machine-local, never config.
 .nfs*
 **/.nfs*
+
+# Python validation and updater imports create local bytecode caches.
+__pycache__/
+*.py[cod]

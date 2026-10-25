@@ -89,8 +89,22 @@ AXI_HOOKS = [
         "matcher": "",
         "hooks": [{"type": "command", "command": name, "timeout": 10}],
     }
-    for name in ("gh-axi", "chrome-devtools-axi", "lavish-axi")
+    for name in ("gh-axi", "chrome-devtools-axi")
 ]
+
+# lavish-axi's self-announcement is ~10 KB of usage text plus every session it
+# has ever opened, re-read on each turn of every session. Only an agent about
+# to build a review artifact needs that, so the others get a one-line pointer.
+LAVISH_HOOK = {
+    "matcher": "",
+    "hooks": [
+        {
+            "type": "command",
+            "command": "echo lavish-axi: HTML review artifacts for the user. Run lavish-axi --help before first use.",
+            "timeout": 10,
+        }
+    ],
+}
 
 # Live worker headroom, so the lead sees spare capacity before planning.
 # Skipped on compaction like recall: the numbers are already in the summary.
@@ -100,7 +114,7 @@ CAPACITY_HOOK = {
 }
 
 HOOKS = {
-    "SessionStart": AXI_HOOKS + [CAPACITY_HOOK] + OPEN_BRAIN_HOOKS["SessionStart"],
+    "SessionStart": AXI_HOOKS + [LAVISH_HOOK, CAPACITY_HOOK] + OPEN_BRAIN_HOOKS["SessionStart"],
     "SessionEnd": OPEN_BRAIN_HOOKS["SessionEnd"],
 }
 

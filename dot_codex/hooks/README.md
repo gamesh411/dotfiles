@@ -1,6 +1,7 @@
 # Codex lifecycle hooks
 
-Managed by chezmoi. The three AXI SessionStart announcements match Claude Code.
+Managed by chezmoi. The AXI SessionStart hooks match Claude Code: gh-axi and
+chrome-devtools-axi announce themselves, lavish-axi gets a one-line pointer.
 Open Brain recall reuses `~/projects/ai-brain/hooks/session-start-recall.ts` on
 startup, resume and clear, excluding compaction. The Python launcher calls the
 repo's tsx through Node, including on Windows.

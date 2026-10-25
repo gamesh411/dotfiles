@@ -21,7 +21,10 @@ Done when every part is marked and every worker part names its check.
 
 ## 2. Route
 
-Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial>` and take `routing.recommended`, or the routing table when it is null.
+Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial>` and use `routing.recommended` when available.
+When it is null, choose a bounded available worker manually using the routing table and live capabilities.
+Unknown quota is uncertainty to report, not a prohibition on delegation.
+Verify supported commands and response behavior instead of requiring a particular CLI version.
 Name the model and a low or moderate effort on every dispatch, native spawns included.
 
 Done when every worker part has a provider, model and effort.

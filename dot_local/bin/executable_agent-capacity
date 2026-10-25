@@ -511,7 +511,7 @@ def probe_cli(provider, timeout, binary=None, runner=capture, quota_probe=None):
     if quota_probe is not None and result["auth"]["status"] == "authenticated":
         remaining = deadline - time.monotonic()
         if remaining > 0:
-            result["quota"] = quota_probe(provider, binary, remaining, auth_snapshot)
+            result["quota"] = quota_probe(provider, remaining, auth_snapshot)
         else:
             add_error(result, "quota", ProbeError("timeout"))
     # Identity from native status is used only to match the quota account in memory.
@@ -520,13 +520,13 @@ def probe_cli(provider, timeout, binary=None, runner=capture, quota_probe=None):
     return result
 
 
-def probe_usage(provider, binary, timeout, auth_snapshot):
+def probe_usage(provider, timeout, auth_snapshot):
     if provider == "cursor":
         from agent_capacity.cursor import fetch_quota
         observation = fetch_quota(timeout=min(timeout, 10), expected_cli_auth=auth_snapshot)
     else:
         from agent_capacity.claude import collect
-        observation = collect(timeout=min(timeout, 60), binary=binary)
+        observation = collect()
     result = {"status": "ok" if observation.get("quota_status") == "known" else "unknown",
               "source": observation.get("quota_source"), "buckets": [],
               "ordinary_usage_allowed": None, "observed_at": observation.get("observed_at"),
@@ -599,10 +599,10 @@ def brief_summary(report):
         manual = "" if eligible else " (manual pick)"
         parts.append("{} {:.0f}% left{}{}".format(provider, best["remaining_percent"], reset, manual))
     chosen = report["routing"].get("recommended")
-    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "none verified"
+    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "none automatic; choose manually"
     return ("Delegation capacity (read-only, no inference): " + "; ".join(parts)
             + ". Suggested routine worker: " + suggestion
-            + ". While planning any task with independent parts, run the `delegate` skill to cut it into lead and worker parts.")
+            + ". Use the shared delegation policy for bounded worker selection.")
 
 
 def positive_timeout(value):

@@ -31,3 +31,10 @@
 .claude/sessions
 .claude/shell-snapshots
 .claude/.last-cleanup
+
+# Repository validation fixtures are not home-directory dotfiles.
+tests
+
+# Generated Python bytecode is neither configuration nor a deployable tool.
+**/__pycache__
+**/*.pyc

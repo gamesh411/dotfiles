@@ -599,10 +599,10 @@ def brief_summary(report):
         manual = "" if eligible else " (manual pick)"
         parts.append("{} {:.0f}% left{}{}".format(provider, best["remaining_percent"], reset, manual))
     chosen = report["routing"].get("recommended")
-    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "none verified"
+    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "manual selection; quota may be unknown"
     return ("Delegation capacity (read-only, no inference): " + "; ".join(parts)
             + ". Suggested routine worker: " + suggestion
-            + ". While planning any task with independent parts, run the `delegate` skill to cut it into lead and worker parts.")
+            + ". Use the shared delegation policy for bounded worker selection.")
 
 
 def positive_timeout(value):

@@ -71,22 +71,25 @@ Everything below auto fails at creative tasks.
 
 ---
 
-## Tool Versions (updated 2026-08-22)
+## Tool upkeep
 
-Treehouse and no-mistakes now self-heal on every `chezmoi apply` via `run_after_install-agentic-tools.sh` (official installers on macOS/Linux, release zips into `~/.local/bin` on Windows).
-AXI CLIs self-heal via `run_after_install-axi-clis.sh`, which also symlinks each package's bundled `SKILL.md` into `~/.cursor/skills` so Cursor Agent can discover Lavish / gh-axi / chrome-devtools-axi.
-Claude Code still gets those CLIs through SessionStart hooks; Cursor has no AXI hook target, so the skill file is the discovery path.
+Chezmoi installs missing workflow and AXI tools through `run_after_install-agentic-tools.sh` and `run_after_install-axi-clis.sh`.
+Existing tools are upgraded explicitly with `agent-tools-update --apply`; run it without flags first to inspect the plan.
+The updater follows each active binary's installation manager and requests the current release rather than storing a version table here.
+It covers installed agent clients, AXI packages, workflow helpers, and a clean tracked firstmate checkout.
+A failed update remains visible and exits nonzero; an installed binary alone is not evidence that it is current.
+Inspect native updater output for declined or skipped updates, since some clients exit successfully even when an update was not applied.
+Run updates from a host terminal with package-install and network access.
 
-| Tool | Version | Install/Update |
-|------|---------|---------------|
-| treehouse | v2.3.0 | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` |
-| no-mistakes | v1.53.0 | `curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh \| sh` |
-| gnhf | 0.1.41 | `npm install -g gnhf` |
-| firstmate | repo clone | `cd ~/firstmate && git pull` |
-| gh-axi | npm | `npm install -g gh-axi` |
-| lavish-axi | npm | `npm install -g lavish-axi` |
-| chrome-devtools-axi | npm | `npm install -g chrome-devtools-axi` |
-| tasks-axi | npm | `npm install -g tasks-axi` |
+Bundled AXI skills follow their package updates.
+Cursor discovers those skills through the symlinks maintained by `run_after_install-axi-clis.sh`.
+Claude Code and Codex also receive AXI discovery through their existing startup hooks.
+Shared personal skills remain version controlled in chezmoi.
+
+The delegation hint is rendered from one chezmoi template into each client's native global instructions.
+It is placed near the start so Claude, Codex, Cursor, and the other clients receive the same standing preference.
+Capacity checks validate observed behavior and response data, never an exact CLI version.
+Unknown quota allows a bounded manual worker choice when appropriate.
 
 ---
 
@@ -101,7 +104,7 @@ Claude Code still gets those CLIs through SessionStart hooks; Cursor has no AXI 
 
 ## Preventing Rot
 
-- **Monthly:** `npm update -g gnhf gh-axi lavish-axi chrome-devtools-axi tasks-axi`
-- **Monthly:** `cd ~/firstmate && git pull` (check AGENTS.md for breaking changes)
+- **Regularly:** `agent-tools-update --apply`, then inspect any failed or manual update steps.
+- **After updates:** run `agent-capacity --json --task routine` and verify the native instruction context in new client sessions.
 - **Quarterly:** Re-run model benchmark (~/blender-ab-test/run-experiment.sh) -- model pricing and quality shift
 - **When things break:** Check `bin/fm-bootstrap.sh` output for missing tools

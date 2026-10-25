@@ -17,7 +17,6 @@ import time
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 FRESH_SECONDS = 60
-VERIFIED_VERSIONS = {(2, 1, 286), (2, 1, 292), (2, 1, 304)}
 
 
 class ProbeError(Exception):
@@ -192,6 +191,9 @@ def request_native_usage(binary, deadline):
     argv = [binary, "--safe-mode", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
             "--permission-mode", "dontAsk", "--permission-prompts", "none", "--no-session-persistence",
             "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--print"]
+    # The parser and control reply establish capabilities, including flags that
+    # may be supported without appearing in --help. Never retry with fewer
+    # safety flags or text input. No user/model message is ever supplied.
     request = {"type": "control_request", "request_id": "agent-capacity-quota",
                "request": {"subtype": "get_usage", "skip_behaviors": True}}
     output = _capture(argv, deadline, json.dumps(request) + "\n", environment)
@@ -203,8 +205,14 @@ def request_native_usage(binary, deadline):
             continue
         if not isinstance(message, dict):
             continue
-        if message.get("type") == "result" and (message.get("num_turns", 0) != 0 or message.get("total_cost_usd", 0) != 0):
+        if message.get("type") in ("assistant", "user", "stream_event"):
             raise ProbeError("native_usage_unexpected_model_activity")
+        if message.get("type") == "result":
+            turns, cost = _number(message.get("num_turns")), _number(message.get("total_cost_usd"))
+            if turns is None or cost is None:
+                raise ProbeError("native_usage_zero_cost_unverified")
+            if turns != 0 or cost != 0:
+                raise ProbeError("native_usage_unexpected_model_activity")
         if message.get("type") != "control_response":
             continue
         outer = message.get("response")
@@ -255,10 +263,6 @@ def collect(timeout=15, binary="claude"):
         if os.environ.get("ANTHROPIC_BASE_URL") not in (None, "", "https://api.anthropic.com"):
             raise ProbeError("native_provider_override_unsupported")
         deadline = time.monotonic() + timeout
-        version_text = _capture([binary, "--version"], deadline)
-        match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+) \(Claude Code\)\s*", version_text)
-        if not match or tuple(map(int, match.groups())) not in VERIFIED_VERSIONS:
-            raise ProbeError("native_usage_interface_unverified")
         before = read_native_snapshot()
         if before and 0 <= now - before["observed_at"] <= FRESH_SECONDS:
             return _snapshot_result(before)
@@ -266,6 +270,8 @@ def collect(timeout=15, binary="claude"):
             payload = request_native_usage(binary, deadline)
         except ProbeError as exc:
             after = read_native_snapshot()
+            if before and after and before["account"] != after["account"]:
+                raise ProbeError("native_usage_account_changed_during_probe")
             return _snapshot_result(after, exc.code) if after else {**unknown, "error": exc.code}
         after = read_native_snapshot()
         if not after:

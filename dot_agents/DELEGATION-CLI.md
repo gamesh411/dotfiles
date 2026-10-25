@@ -44,7 +44,7 @@ It does not replace `--sandbox enabled` or grant permission for commands.
 `--model` also persists as the interactive default model in `~/.cursor/cli-config.json`, so every worker run changes the user's Cursor selection.
 Run `chezmoi apply ~/.cursor/cli-config.json` after a batch to restore the tracked choice.
 
-The helper reads the first-party `/api/usage-summary` endpoint with the native Cursor session; no model prompt, browser-cookie extraction, or token refresh is used. It keeps the server-reported Cursor Models and Other Models percentages separate. Aggregate monetary fields do not reconstruct either pool. Cursor Models currently covers the supported Grok 4.5/4.6/4.7 routes. Auto and Router can consume either pool and receive no automatic recommendation. The endpoint is internal and may change; a missing field stays unknown.
+The helper reads the first-party `/api/usage-summary` endpoint with the native Cursor session; no model prompt, browser-cookie extraction, or token refresh is used. It keeps the server-reported Cursor Models and Other Models percentages separate. Aggregate monetary fields do not reconstruct either pool. The Grok Fast family uses the Cursor Models pool; model identifiers come from the live catalog rather than a list of accepted version numbers. Auto and Router can consume either pool and receive no automatic recommendation. The endpoint is internal and may change; a missing field stays unknown.
 
 A fresh CLI status is matched in memory to the native session before its allowance can guide a CLI worker.
 Mismatched accounts stop the request; unverifiable matches remain display-only.
@@ -63,15 +63,18 @@ Check `claude auth status --json` and `claude --help`. Select a model accepted b
 
 For a pure text transformation, `claude --print --model '<verified model>' --effort low --tools '' --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence --output-format json` can read the brief from stdin. The tool flags disable built-in and MCP tools for that text-only job. For work requiring tools, grant only the tools and directories needed under the current permission policy. Use `--permission-prompts none` for headless runs only when unsupported approval requests should fail back to the parent. It does not grant approval.
 
-For machine-checked output, add `--json-schema '<schema>'` and inspect `structured_output` in the response envelope. A text-only test verified the installed `haiku` alias on 2026-10-22 with Claude Code 2.1.304; that run reported `claude-haiku-5-5`. Do not assume an alias selects the newest generation.
+For machine-checked output, add `--json-schema '<schema>'` and inspect `structured_output` in the response envelope.
+Choose an alias accepted by the installed client and inspect the returned model identity.
+An alias is not a promise of a particular model generation.
 
-Claude Code 2.1.286, 2.1.292, and 2.1.304 have a verified local `get_usage` control request.
-The helper uses this native interface with tools, hooks, MCP servers, session persistence, and permission prompts disabled; it sends no model turn.
-It checks the native account-bound cache timestamp so a silent stale fallback cannot masquerade as fresh quota.
-This experimental control interface is enabled only for those verified versions; other versions return unknown until reverified.
-2.1.292 was checked on Windows on 2026-10-14 and returned fresh subscription windows with no model turn.
-2.1.304 was checked on macOS on 2026-10-22 with the same result.
-Unavailable quota also returns unknown; never guess that an unverified `/usage` text prompt will stay local.
+Claude quota probing uses a bounded native `get_usage` control request with no user message or model prompt.
+The helper disables tools, hooks, MCP servers, session persistence, and permission prompts for that request.
+It validates the response schema, zero model cost, native account identity, matching measured windows, and cache freshness.
+Support is detected from command acceptance and response behavior, with no exact CLI-version or help-text allowlist.
+Changed flags, rejected requests, malformed responses, or missing provenance produce sanitized unknown quota without a weaker retry.
+A fresh account-bound native cache can provide measurements when the live interface is unavailable.
+Unknown quota does not block a bounded worker request through a working authenticated client.
+Never guess that an unverified `/usage` prompt will stay local.
 `--max-budget-usd` is not a subscription-allowance guard.
 
 Use the minimum remaining allowance across the common session/week and applicable model-specific limits. The server's `is_active` flag chooses a headline display; it does not remove other applicable constraints. The native CLI does not advertise a machine-readable model catalog, so the helper exposes Claude aliases as manual choices whose availability must be checked separately.
@@ -89,7 +92,7 @@ On Windows, PowerShell runs `agent-capacity.cmd` from that directory, which call
 Git Bash runs the extensionless script when `python3` is on PATH.
 macOS is live-tested.
 Linux paths are implemented but not live-tested.
-Windows was live-tested on 2026-10-14: Codex app-server, Cursor usage, and Claude 2.1.292 quota all returned without a model turn.
+Windows was live-tested on 2026-10-14: Codex app-server, Cursor usage, and Claude native control quota all returned without a model turn.
 
 Sign in to each provider locally on each machine. Credentials, usage snapshots, trust decisions, and native runtime caches stay on that machine; this helper adds no persistent cache or credentials to chezmoi. Cursor workspace trust remains a separate decision for the intended directory. Updating chezmoi source locally does not publish it to the Git remote.
 
@@ -100,3 +103,21 @@ Sign in to each provider locally on each machine. Credentials, usage snapshots, 
 - [Claude statusline quota fields](https://code.claude.com/docs/en/statusline), [Claude model configuration](https://code.claude.com/docs/en/model-config), [Cursor headless mode](https://prod.cursor.com/docs/cli/headless), and [Cursor usage pools](https://prod.cursor.com/help/models-and-usage/usage-limits).
 - [CodexBar Cursor provider](https://github.com/steipete/CodexBar/blob/main/docs/cursor.md) and its native-session usage implementation; checked against the installed client and live server response.
 - Provider-specific quota limitations are also returned by `agent-capacity`. Refresh this reference when client capabilities change.
+
+## Tool upkeep and shared instructions
+
+Run `agent-tools-update` to inspect the update plan and `agent-tools-update --apply` to execute it from a host with package-install and network access.
+The updater supports macOS and Linux, follows active npm, Homebrew, or native CLI ownership, and resolves current releases at execution time.
+On Windows it reports an explicit manual update requirement rather than guessing ownership of npm command shims.
+It reports failed or unsupported updates instead of treating an installed binary as current.
+A successful updater exit records command completion; inspect native output for declined or skipped updates before claiming a tool is current.
+The chezmoi apply scripts still install missing prerequisites; they do not upgrade existing binaries on every dotfile apply.
+Bundled AXI skills follow their npm package updates.
+Custom shared skills and delegation policy remain in chezmoi instead of being overwritten by a blanket skills update.
+
+The compact delegation hint has one source, `.chezmoitemplates/delegation-hint.md` in chezmoi.
+Native global instruction files render the same text near their beginning for Codex, Claude Code, Cursor, Kiro, Gemini, Copilot, and Pi.
+OpenCode explicitly loads the same rendered `~/.agents/DELEGATION-HINT.md` through its instructions setting.
+The home `AGENTS.md` renders the Claude instructions for clients that consume that file.
+Capacity hooks add live status; the standing instruction is present even if a quota probe fails.
+Keep worker recursion suppression in both the shared hint and the capacity hook.

@@ -38,3 +38,10 @@ tests
 # Generated Python bytecode is neither configuration nor a deployable tool.
 **/__pycache__
 **/*.pyc
+
+# This Mac runs nvim-mentor, which other machines can't build (SSH clone,
+# make and Go), so its plugin list and lockfile diverge from the shared ones.
+{{ if eq .chezmoi.os "darwin" }}
+.config/nvim/lua/plugins/init.lua
+.config/nvim/nvim-pack-lock.json
+{{ end }}

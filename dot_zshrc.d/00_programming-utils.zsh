@@ -77,7 +77,7 @@ function compile-cpp() {
   local out="${2:-a.out}"
   shift 2 || shift # Remove first two args, or just the first if only one given
 
-  clang++ \
+  g++ \
     -std=c++20 \
     -march=native \
     -Wall \
@@ -114,5 +114,5 @@ function compile-cpp-asan() {
   local out="${2:-a.out}"
   shift 2 || shift # Remove first two args, or just the first if only one given
 
-  cpp "${src}" "${out}" -fsanitize=address,undefined "$@"
+  compile-cpp "${src}" "${out}" -fsanitize=address,undefined "$@"
 }

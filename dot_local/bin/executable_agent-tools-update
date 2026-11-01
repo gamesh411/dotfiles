@@ -20,7 +20,7 @@ NPM_TOOLS = {
     "@anthropic-ai/claude-code": "claude", "@google/gemini-cli": "gemini",
     "@github/copilot": "copilot", "opencode-ai": "opencode",
 }
-NATIVE_TOOLS = ("cursor-agent", "treehouse", "no-mistakes", "kiro-cli")
+NATIVE_TOOLS = ("cursor-agent", "treehouse", "kiro-cli")
 
 
 def run(argv, timeout):
@@ -76,8 +76,9 @@ def brew_owner(path):
     return None
 
 
-def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve(), home=None):
-    if os.name != "posix":
+def plan(which=shutil.which, runner=run, resolve=lambda path: Path(path).resolve(), home=None,
+         os_name=None):
+    if (os.name if os_name is None else os_name) != "posix":
         return {"mode": "plan", "actions": [], "manual": [
             {"tool": "platform", "reason": "posix_updater_required_windows_shims_unverified"}],
                 "commands_exited_successfully": False}

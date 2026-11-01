@@ -27,7 +27,6 @@ Unattended or multi-hour runs keep a decision log per the `show-me-your-work` sk
 
 ## Ship
 
-Push through the no-mistakes gate (`git push no-mistakes <branch>`) rather than straight to the remote.
 Once a PR is open, `/babysit` shepherds it: conflicts, failing CI, and mechanical review comments; judgment calls escalate to the human.
 
 ## Feedback

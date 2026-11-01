@@ -58,8 +58,11 @@ class UpdaterTests(unittest.TestCase):
             return result(stdout="Commands:\n  update [flags]  Update installation\n")
         return result()
 
-    def plan(self, runner=None):
-        return updater.plan(which=self.paths.get, runner=runner or self.runner, home=self.root)
+    def plan(self, runner=None, os_name="posix"):
+        # Fake executables stand in for the real tools, so the POSIX planning
+        # rules are checkable on any host; only the Windows test opts out.
+        return updater.plan(which=self.paths.get, runner=runner or self.runner, home=self.root,
+                            os_name=os_name)
 
     def test_npm_batch_only_installed_supported_active_packages(self):
         for package in ("@earendil-works/pi-coding-agent", "gh-axi", "cavemem", "tasks-axi"):
@@ -180,8 +183,8 @@ class UpdaterTests(unittest.TestCase):
         self.assertFalse(applied["commands_exited_successfully"])
         self.assertNotIn("SECRET", json.dumps(applied))
 
-    def test_native_active_run_refusal_is_preserved(self):
-        report = {"actions": [{"id": "native-no-mistakes", "argv": ["no-mistakes", "update"]}], "manual": []}
+    def test_native_update_failure_is_preserved(self):
+        report = {"actions": [{"id": "native-treehouse", "argv": ["treehouse", "update"]}], "manual": []}
         applied = updater.apply(report, runner=lambda argv, timeout: result(False))
         self.assertFalse(applied["commands_exited_successfully"])
         self.assertEqual(applied["results"][0]["reason"], "command_failed")
@@ -286,8 +289,7 @@ class UpdaterTests(unittest.TestCase):
         self.assertTrue(report["commands_exited_successfully"])
 
     def test_windows_scope_is_explicit_manual_action(self):
-        with patch.object(updater.os, "name", "nt"):
-            report = self.plan()
+        report = self.plan(os_name="nt")
         self.assertEqual(report["actions"], [])
         self.assertIn("windows_shims_unverified", report["manual"][0]["reason"])
 

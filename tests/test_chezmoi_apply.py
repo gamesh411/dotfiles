@@ -1,4 +1,5 @@
 """Exercise actual deployment in an isolated destination without install scripts."""
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -50,7 +51,9 @@ class ChezmoiApplyTest(unittest.TestCase):
                     self.assertEqual(rendered.count(hint), 1)
                     self.assertEqual(rendered.count("<!-- shared-delegation:start -->"), 1)
             self.assertIn(local, (target / ".codex/AGENTS.md").read_text())
-            self.assertTrue((target / ".local/bin/agent-tools-update").stat().st_mode & 0o111)
+            # Windows derives the exec bit from the file extension, not the mode.
+            if os.name == "posix":
+                self.assertTrue((target / ".local/bin/agent-tools-update").stat().st_mode & 0o111)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # The agentic workflow section in dot_claude/CLAUDE.md leans on treehouse
-# (pooled git worktrees for parallel agents) and no-mistakes (pre-push
-# validation gate), so a machine without them cannot follow the documented
-# loop. Runs on every apply rather than run_onchange_ so a machine self-heals
+# (pooled git worktrees for parallel agents), so a machine without it cannot
+# follow the documented loop. Runs on every apply rather than run_onchange_ so a machine self-heals
 # if the binaries are ever removed; the command -v probe keeps the
 # already-installed case instant. Same pattern as run_after_install-axi-clis.sh.
 #
@@ -13,7 +12,7 @@
 # out of the effective URL with no API call and no rate limit.
 set -euo pipefail
 
-tools=(treehouse no-mistakes)
+tools=(treehouse)
 owner="kunchenguid"
 
 missing=()

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Implement tickets"
+  short_description: "Drain a local ticket tracker by running /implement on the frontier"
+policy:
+  allow_implicit_invocation: false

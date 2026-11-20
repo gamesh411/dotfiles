@@ -616,10 +616,11 @@ def positive_timeout(value):
 
 
 def main():
+    from agent_capacity.routing import TASKS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider", choices=("all", "codex", "claude", "cursor"), default="all")
     parser.add_argument("--json", action="store_true", help="Emit sanitized JSON; partial/unknown results intentionally exit zero")
-    parser.add_argument("--task", choices=("tiny", "routine", "substantial"), help="Add quota-aware worker advice; never launches a worker")
+    parser.add_argument("--task", choices=TASKS, help="Add quota-aware worker advice; never launches a worker")
     parser.add_argument("--reserve-percent", type=float, default=15, help="Local routing reserve, default 15%%; not a provider limit")
     parser.add_argument("--timeout", type=positive_timeout, default=25.0, help="Deadline per provider in seconds, default 25; maximum 120")
     parser.add_argument("--brief", action="store_true", help="One-line SessionStart summary with routine-task advice; silent inside workers")

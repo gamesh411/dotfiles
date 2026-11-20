@@ -14,18 +14,21 @@ Unknown quota does not prohibit delegation: use a bounded authorized worker when
 ## Choose the worker
 
 1. Define a deliverable and a cheap way to check it. Give visual workers approved design decisions or a reference; keep new visual direction and editorial judgment with the lead.
-2. Before a delegation batch, run `~/.local/bin/agent-capacity --json --task routine`, choosing `tiny`, `routine`, or `substantial` for the assignment. Reuse that result within the same batch for up to ten minutes. Refresh after a limit error or a substantial run. For one provider, add `--provider codex`, `cursor`, or `claude`. Read `routing.recommended` and its evidence; a null recommendation means the helper cannot make an automatic choice, so choose a bounded worker manually from the available native agents or authenticated CLIs. Read provider status, model list, quota source, remaining windows, reset times, and observation timestamp before that choice.
+2. Before a delegation batch, run `~/.local/bin/agent-capacity --json --task routine`, choosing `tiny`, `routine`, `substantial`, `review`, or `aesthetic` for the assignment. Reuse that result within the same batch for up to ten minutes. Refresh after a limit error or a substantial run. For one provider, add `--provider codex`, `cursor`, or `claude`. Read `routing.recommended` and its evidence; a null recommendation means the helper cannot make an automatic choice, so choose a bounded worker manually from the available native agents or authenticated CLIs. Read provider status, model list, quota source, remaining windows, reset times, and observation timestamp before that choice.
 3. Choose the least expensive available model likely to pass the checks. Prefer included subscription capacity over metered API usage. Treat the table as the user's routing preference, not a benchmark or guaranteed price ranking.
 
 | Work | Preferred route |
 | --- | --- |
-| Extraction, classification, small repetitive edits, narrow checks | Codex Luna; batch tiny tasks |
-| Routine implementation with explicit requirements | Cursor Grok Fast or Codex Terra, according to live availability and capacity |
-| Larger implementation, debugging with several steps, substantial independent review | Latest available Codex Sol |
+| Search, lookup, extraction, classification, small repetitive edits, narrow checks (`tiny`) | Codex Luna or Terra, then Claude Haiku; batch tiny tasks |
+| Routine implementation with explicit requirements (`routine`) | Codex Terra or Luna, then Claude Haiku, then Claude Opus |
+| Diligent work: larger implementation, debugging with several steps (`substantial`) | Claude Opus; Cursor Grok Fast as its backup |
+| Review and QA (`review`) | Latest available Codex Sol, then Claude Opus or Cursor Grok Fast |
+| Aesthetic execution from an approved direction: visual polish, layout, tone (`aesthetic`) | Claude Fable or Codex Astra |
 | Design, architecture, unclear requirements, difficult judgment | Capable lead model; use a capable peer when independent judgment is useful |
-| A task demonstrably better suited to Claude, or another working pool is constrained | An appropriate available Claude model |
 
-4. Use model identifiers returned by the installed client. Current examples are `gpt-6-luna`, `gpt-5.6-terra`, and `gpt-6.1-sol`; availability may change. The tested Cursor Grok Fast identifier is `cursor-grok-4.6-high-fast`; verify the Grok option in the live model list. Choose low or moderate reasoning for mechanical work instead of inheriting the lead's maximum setting. Codex workers use Standard service, `service_tier="default"`, unless latency justifies extra usage. Cursor's Grok Fast preference does not imply Codex Fast mode.
+Prefer Claude Opus over Claude Sonnet; use Sonnet only when Opus and its Grok Fast backup are both constrained.
+
+4. Use model identifiers returned by the installed client. Current examples are `gpt-6-luna`, `gpt-6.1-terra`, `gpt-6.2-sol`, and `gpt-6.2-astra`; availability may change. The tested Cursor Grok Fast identifier is `cursor-grok-4.6-high-fast`; verify the Grok option in the live model list. Choose low or moderate reasoning for mechanical work instead of inheriting the lead's maximum setting. Codex workers use Standard service, `service_tier="default"`, unless latency justifies extra usage. Cursor's Grok Fast preference does not imply Codex Fast mode.
 
 ## Capacity is evidence
 

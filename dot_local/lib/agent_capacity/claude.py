@@ -16,6 +16,7 @@ import time
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 FRESH_SECONDS = 600
+CLAUDE_FAMILIES = ("haiku", "sonnet", "opus", "fable")
 
 
 class ProbeError(Exception):
@@ -102,7 +103,7 @@ def normalize_usage(payload, observed_at=None, now=None):
         model = scope.get("model") if isinstance(scope, dict) else None
         model = model if isinstance(model, dict) else {}
         model_id, label = _model(model.get("id")), _model(model.get("display_name"))
-        family = label.lower() if label and label.lower() in ("haiku", "sonnet", "opus") else label or "unknown_model"
+        family = label.lower() if label and label.lower() in CLAUDE_FAMILIES else label or "unknown_model"
         add("weekly_scoped_" + str(index), entry, 10080, family, "percent", model_id)
         scoped.append((label, _percent(entry.get("percent")), _reset(entry.get("resets_at"))))
     # The cached payload can carry scoped rows without the raw limits[]. Include
@@ -116,7 +117,7 @@ def normalize_usage(payload, observed_at=None, now=None):
             signature = (label, _percent(entry.get("utilization")), _reset(entry.get("resets_at")))
             if signature in scoped:
                 continue
-            scope = label.lower() if label and label.lower() in ("haiku", "sonnet", "opus") else label or "unknown_model"
+            scope = label.lower() if label and label.lower() in CLAUDE_FAMILIES else label or "unknown_model"
             add("model_scoped_" + str(index), entry, 10080, scope)
     known = any(window["status"] == "known" for window in windows)
     measured = any(window["used_percent"] is not None for window in windows)

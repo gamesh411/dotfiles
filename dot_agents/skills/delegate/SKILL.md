@@ -21,18 +21,21 @@ Done when every part is marked and every worker part names its check.
 
 ## 2. Route
 
-Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial>` and use `routing.recommended` when available.
+Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial|review|aesthetic>` once per batch, reuse it for ten minutes, and use `routing.recommended` when available.
 When it is null, choose a bounded available worker manually using the routing table and live capabilities.
 Unknown quota is uncertainty to report, not a prohibition on delegation.
 Verify supported commands and response behavior instead of requiring a particular CLI version.
 Name the model and a low or moderate effort on every dispatch, native spawns included.
+For native subagents use `haiku` for search, lookup and extraction, `opus` for diligent work and review, and `fable` for aesthetic work.
+Prefer `opus` over `sonnet`.
 
 Done when every worker part has a provider, model and effort.
 
 ## 3. Dispatch
 
 Follow "Dispatch and accept" in `DELEGATION.md` for the brief, the `DELEGATED_WORKER` marker, sandboxing and file ownership.
-Launch independent workers in parallel and keep working on lead parts meanwhile.
+Read each policy file once per session, and read `DELEGATION-CLI.md` only when dispatching a CLI worker.
+Launch independent workers in parallel, at most four native subagents at a time, and keep working on lead parts meanwhile.
 
 Done when every brief could be finished without a question back to you.
 

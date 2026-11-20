@@ -170,16 +170,23 @@ def _entries(provider):
             and row.get("hidden") is not True]
 
 
+# The user's routing preference per task class. Cursor Grok Fast backs up Claude
+# Opus, and Sonnet only follows both, because Opus is preferred over Sonnet.
+ORDERS = {
+    "tiny": [("codex", "luna"), ("codex", "terra"), ("claude", "haiku")],
+    "routine": [("codex", "terra"), ("codex", "luna"), ("claude", "haiku"), ("claude", "opus"),
+                ("cursor", "grok_fast"), ("claude", "sonnet")],
+    "substantial": [("claude", "opus"), ("cursor", "grok_fast"), ("codex", "sol"), ("claude", "sonnet")],
+    "review": [("codex", "sol"), ("claude", "opus"), ("cursor", "grok_fast"), ("claude", "sonnet")],
+    "aesthetic": [("claude", "fable"), ("codex", "astra")],
+}
+TASKS = tuple(ORDERS)
+CLAUDE_FAMILIES = ("haiku", "sonnet", "opus", "fable")
+
+
 def _rank(task, provider, family):
-    orders = {
-        "tiny": [("codex", "luna"), ("cursor", "grok_fast"), ("codex", "terra"),
-                 ("codex", "sol"), ("claude", "haiku"), ("claude", "sonnet"), ("claude", "opus")],
-        "routine": [("cursor", "grok_fast"), ("codex", "terra"), ("codex", "sol"),
-                    ("claude", "sonnet"), ("claude", "haiku"), ("claude", "opus")],
-        "substantial": [("codex", "sol"), ("claude", "sonnet"), ("claude", "opus")],
-    }
     try:
-        return orders[task].index((provider, family))
+        return ORDERS[task].index((provider, family))
     except ValueError:
         return None
 
@@ -189,7 +196,7 @@ def _candidates(provider):
     entries = _entries(provider)
     if name == "codex":
         for entry in entries:
-            match = re.fullmatch(r"gpt-\d+(?:\.\d+)*-(luna|terra|sol)", entry["id"])
+            match = re.fullmatch(r"gpt-\d+(?:\.\d+)*-(luna|terra|sol|astra)", entry["id"])
             if match:
                 yield entry, match.group(1), True
     elif name == "cursor":
@@ -201,11 +208,11 @@ def _candidates(provider):
     elif name == "claude":
         found = set()
         for entry in entries:
-            match = re.search(r"(?:^|-)(haiku|sonnet|opus)(?:-|$)", entry["id"])
+            match = re.search(r"(?:^|-)(" + "|".join(CLAUDE_FAMILIES) + r")(?:-|$)", entry["id"])
             if match:
                 found.add(match.group(1))
                 yield entry, match.group(1), True
-        for family in ("haiku", "sonnet", "opus"):
+        for family in CLAUDE_FAMILIES:
             if family not in found:
                 yield {"id": family, "model": family}, family, False
 
@@ -216,8 +223,8 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
     The task class is an explicit caller choice. Stale/unknown quota cannot
     qualify, even when authentication, catalog entries or credits are present.
     """
-    if task not in ("tiny", "routine", "substantial"):
-        raise ValueError("task must be tiny, routine or substantial")
+    if task not in TASKS:
+        raise ValueError("task must be one of " + ", ".join(TASKS))
     if _percent(reserve_percent) is None:
         raise ValueError("reserve_percent must be between 0 and 100")
     if type(max_age_seconds) not in (int, float) or not math.isfinite(max_age_seconds) or max_age_seconds <= 0:

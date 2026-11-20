@@ -77,7 +77,7 @@ Use the minimum remaining allowance across the common session/week and applicabl
 
 ## Routing and another machine
 
-For quota-based advice, use `~/.local/bin/agent-capacity --json --task routine` (or `tiny` / `substantial`). Inspect `routing.recommended`, candidate reasons, and the observation timestamp. Advice never starts a worker. `--reserve-percent 15` is the default local reserve and can be adjusted for the batch. A partial result intentionally exits zero; JSON status fields determine readiness. Reuse fresh output for up to ten minutes; refresh after substantial work or a quota error, respecting server retry delays.
+For quota-based advice, use `~/.local/bin/agent-capacity --json --task routine` (or `tiny` / `substantial` / `review` / `aesthetic`). Inspect `routing.recommended`, candidate reasons, and the observation timestamp. Advice never starts a worker. `--reserve-percent 15` is the default local reserve and can be adjusted for the batch. A partial result intentionally exits zero; JSON status fields determine readiness. Reuse fresh output for up to ten minutes; refresh after substantial work or a quota error, respecting server retry delays.
 
 Chezmoi manages `~/.local/bin/agent-capacity`, its standard-library modules under `~/.local/lib/agent_capacity/`, both shared delegation documents, and the existing native instruction pointers.
 Deploy the helper and modules together.

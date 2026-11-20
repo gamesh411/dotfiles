@@ -48,8 +48,9 @@ The helper reads the first-party `/api/usage-summary` endpoint with the native C
 
 A fresh CLI status is matched in memory to the native session before its allowance can guide a CLI worker.
 Mismatched accounts stop the request; unverifiable matches remain display-only.
-On macOS, the adapter can use the signed-in Cursor app when the CLI stores its token only in Keychain.
-A CLI-only macOS machine without an accessible native file/app session returns unknown.
+On macOS the CLI stores its token in the login Keychain item `cursor-access-token`, which the adapter reads silently with `/usr/bin/security` before falling back to the Cursor app.
+Newer Cursor app builds encrypt `cursorAuth/accessToken`, which reports `native_session_encrypted` rather than a usable session.
+The Keychain path was live-checked on 2026-11-20 and matched the CLI account.
 Native Linux session files are supported.
 On Windows the helper reads `%APPDATA%\Cursor\auth.json` first.
 A signed-in desktop install also stores `cursorAuth/accessToken` in `%APPDATA%\Cursor\User\globalStorage\state.vscdb`, which is the fallback when that auth file is absent.

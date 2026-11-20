@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / "dot_local/lib/agent_capacity/claude.py"
 SPEC = importlib.util.spec_from_file_location("claude_capacity_under_test", MODULE)
+assert SPEC is not None and SPEC.loader is not None
 claude = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(claude)
 

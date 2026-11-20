@@ -42,6 +42,7 @@ class DelegationTemplatesTest(unittest.TestCase):
             raise unittest.SkipTest("chezmoi is required to verify rendered instruction output")
 
     def render(self, source):
+        assert self.chezmoi is not None
         with tempfile.TemporaryDirectory() as td:
             return subprocess.run([
                 self.chezmoi, "--source", str(ROOT), "--persistent-state", str(Path(td) / "state"),

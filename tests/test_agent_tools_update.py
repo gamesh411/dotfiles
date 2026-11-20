@@ -18,6 +18,7 @@ from unittest.mock import patch
 SOURCE = Path(__file__).resolve().parents[1] / "dot_local/bin/executable_agent-tools-update"
 LOADER = importlib.machinery.SourceFileLoader("agent_tools_update", str(SOURCE))
 SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
+assert SPEC is not None
 updater = importlib.util.module_from_spec(SPEC)
 LOADER.exec_module(updater)
 

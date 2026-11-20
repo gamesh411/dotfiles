@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import sqlite3
 import ssl
+import subprocess
 import sys
 import time
 
@@ -34,6 +35,17 @@ def auth_override_present():
 def config_home():
     value = os.environ.get("XDG_CONFIG_HOME", "")
     return Path(value) if value.startswith("/") else Path.home() / ".config"
+
+
+def keychain_cli_token():
+    """The macOS CLI keeps its session in the login Keychain, not in auth.json."""
+    try:
+        result = subprocess.run(["/usr/bin/security", "find-generic-password", "-s", "cursor-access-token", "-w"],
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    value = result.stdout.strip() if result.returncode == 0 else ""
+    return value or None
 
 
 def native_token():
@@ -60,6 +72,10 @@ def native_token():
             raise ProbeError("stored_auth_override")
         if value:
             return value, "cursor_cli_native_session"
+    if sys.platform == "darwin":
+        value = keychain_cli_token()
+        if value:
+            return value, "cursor_cli_native_session"
     if database is None or not database.is_file():
         raise ProbeError("native_session_missing")
     # Immutable mode only when no live WAL/SHM exists; never ignore active WAL.
@@ -80,6 +96,9 @@ def native_token():
             raise ProbeError("native_session_invalid") from None
     if not value:
         raise ProbeError("native_session_missing")
+    if isinstance(value, str) and "." not in value and value.count(":") >= 2:
+        # Newer app builds store the token encrypted with a Keychain-held key.
+        raise ProbeError("native_session_encrypted")
     return value, "cursor_app_native_session"
 
 
@@ -166,7 +185,7 @@ def timestamp(value):
 
 def sanitize(summary):
     """Fixed schema excludes identity, messages, raw response, and unknown fields."""
-    result = {"billingCycleStart": timestamp(summary.get("billingCycleStart")),
+    result: dict = {"billingCycleStart": timestamp(summary.get("billingCycleStart")),
               "billingCycleEnd": timestamp(summary.get("billingCycleEnd"))}
     for root in ("individualUsage", "teamUsage"):
         obj = summary.get(root)
@@ -189,7 +208,7 @@ def sanitize(summary):
 def normalize(summary, source):
     safe = sanitize(summary)
     observed = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
-    plan = safe.get("individualUsage", {}).get("plan", {})
+    plan: dict = safe.get("individualUsage", {}).get("plan", {})
     cycle_end = safe["billingCycleEnd"]
     cycle_start = safe["billingCycleStart"]
     current = bool(cycle_start and cycle_end and
@@ -204,7 +223,7 @@ def normalize(summary, source):
         windows.append({"scope": scope, "label": "Cursor Models" if scope == "cursor_models" else "Other Models",
                         "source_field": "individualUsage.plan." + field,
                         "used_percent": used if valid else None,
-                        "remaining_percent": max(0.0, min(100.0, 100.0 - used)) if valid else None,
+                        "remaining_percent": max(0.0, min(100.0, 100.0 - used)) if valid and used is not None else None,
                         "resets_at": cycle_end, "status": "known" if valid else "unknown"})
     total = plan.get("totalPercentUsed")
     aggregate = {"scope": "individual_plan_aggregate", "used_percent": total if current and enabled else None,

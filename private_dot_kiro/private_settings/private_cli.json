@@ -20,5 +20,6 @@
   "codeWhisperer.shareCodeWhispererContentWithAWS": false,
   "mcp.loadedBefore": true,
   "telemetry.enabled": false,
-  "chat.defaultAgent": "default"
+  "chat.defaultAgent": "default",
+  "chat.agentEngine": "v3"
 }

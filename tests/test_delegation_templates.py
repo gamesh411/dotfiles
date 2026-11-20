@@ -13,7 +13,7 @@ SURFACES = [
     "dot_agents/DELEGATION-HINT.md.tmpl",
     "dot_claude/CLAUDE.md.tmpl",
     "dot_cursor/rules/general-guidelines.mdc.tmpl",
-    "dot_kiro/steering/general-guidelines.md.tmpl",
+    "private_dot_kiro/steering/general-guidelines.md.tmpl",
     "dot_gemini/GEMINI.md.tmpl",
     "dot_copilot/copilot-instructions.md.tmpl",
     "dot_pi/agent/AGENTS.md.tmpl",
@@ -62,7 +62,7 @@ class DelegationTemplatesTest(unittest.TestCase):
         cursor = frontmatter(self.render("dot_cursor/rules/general-guidelines.mdc.tmpl"))
         self.assertEqual(cursor["alwaysApply"], "true")
         self.assertTrue(cursor["description"])
-        kiro = frontmatter(self.render("dot_kiro/steering/general-guidelines.md.tmpl"))
+        kiro = frontmatter(self.render("private_dot_kiro/steering/general-guidelines.md.tmpl"))
         self.assertEqual(kiro["inclusion"], "always")
 
     def test_opencode_loads_the_compact_hint_before_the_full_policy(self):

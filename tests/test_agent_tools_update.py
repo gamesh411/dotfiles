@@ -65,7 +65,7 @@ class UpdaterTests(unittest.TestCase):
                             os_name=os_name)
 
     def test_npm_batch_only_installed_supported_active_packages(self):
-        for package in ("@earendil-works/pi-coding-agent", "gh-axi", "cavemem", "tasks-axi"):
+        for package in ("@earendil-works/pi-coding-agent", "gh-axi", "tasks-axi"):
             self.npm_package(package)
         self.packages.update({"npm": {}, "corepack": {}, "pyright": {}})
         report = self.plan()
@@ -74,7 +74,7 @@ class UpdaterTests(unittest.TestCase):
         argv = report["actions"][0]["argv"]
         self.assertEqual(argv[:3], [self.paths["npm"], "install", "--global"])
         self.assertEqual(set(argv[3:]), {name + "@latest" for name in (
-            "@earendil-works/pi-coding-agent", "gh-axi", "cavemem", "tasks-axi")})
+            "@earendil-works/pi-coding-agent", "gh-axi", "tasks-axi")})
         self.assertTrue(all(timeout <= 20 for _, timeout in self.calls))
 
     def test_npm_inventory_with_problem_entries_still_updates_owned_tools(self):

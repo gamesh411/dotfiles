@@ -14,7 +14,7 @@ import sys
 
 NPM_TOOLS = {
     "@earendil-works/pi-coding-agent": "pi", "@mariozechner/pi-coding-agent": "pi",
-    "cavemem": "cavemem", "gnhf": "gnhf", "gh-axi": "gh-axi",
+    "gnhf": "gnhf", "gh-axi": "gh-axi",
     "lavish-axi": "lavish-axi", "chrome-devtools-axi": "chrome-devtools-axi",
     "tasks-axi": "tasks-axi", "@openai/codex": "codex",
     "@anthropic-ai/claude-code": "claude", "@google/gemini-cli": "gemini",

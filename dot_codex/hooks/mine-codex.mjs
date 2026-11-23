@@ -47,28 +47,32 @@ async function main() {
   const {projectOf} = await moduleOf('cursor.ts');
   const {renderTranscript} = await moduleOf('transcript.ts');
   const {EXTRACTOR_VERSION, extractCandidates, labelFor} = await moduleOf('extract.ts');
-  const {minedSessions, captureThought, recordMined} = await moduleOf('ledger.ts');
+  const {minedSessions, captureThought, recordMined, searchNeighbours} = await moduleOf('ledger.ts');
+  // The judge, project hint and ledger rules live in ai-brain's shared loop, so
+  // Codex sessions stop storing paraphrased duplicates the Claude tail now skips.
+  const {judgeCandidate, storeCandidates} = await moduleOf('dedupe.ts');
   loadEnv();
-  if (!process.env.OPENAI_API_KEY) return;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return;
+  const dryRun = process.argv.includes('--dry-run');
   const corpus = 'codex';
   if ((await minedSessions(corpus, EXTRACTOR_VERSION)).has(session.id)) return;
   const project = projectOf(session.cwd || '') || '(unattributed)';
   const validFrom = new Date(session.endedAt).toISOString();
   const name = session.messages.find(m => m.role === 'user')?.text.slice(0, 120) || '(untitled)';
-  const candidates = await extractCandidates({apiKey: process.env.OPENAI_API_KEY,
+  const candidates = await extractCandidates({apiKey,
     transcript: renderTranscript(session.messages), project: labelFor(project),
     conversationName: name, date: validFrom.slice(0, 10)});
-  let stored = 0;
-  for (const candidate of candidates) {
-    const result = await captureThought({content: candidate.content,
-      source: `codex-tail v${EXTRACTOR_VERSION} ${project}`, validFrom, trust: 'agent_inferred',
-      metadata: {mined_from: {corpus, session_id: session.id}, extractor_version: EXTRACTOR_VERSION}});
-    if (result.ok) stored++;
-    else if (result.status !== 409) throw new Error(`capture failed: ${result.status}`);
-  }
-  await recordMined({corpus, session_id: session.id, extractor_version: EXTRACTOR_VERSION,
-    candidates_found: candidates.length, candidates_kept: stored});
-  console.log(`${stored}/${candidates.length} codex ${session.id}`);
+  const {stored, skipped, failed} = await storeCandidates(
+    {candidates, sessionId: session.id, project, validFrom, dryRun, corpus, sourceTag: 'codex-tail'},
+    {search: content => searchNeighbours(content, {limit: 5, minSimilarity: 0.6}),
+      judge: (candidate, neighbours) => judgeCandidate({apiKey, candidate, neighbours}),
+      capture: captureThought, record: recordMined,
+      log: line => console.log(line), error: line => console.error(line)});
+  console.log(`${dryRun ? '[dry] ' : ''}${stored}/${candidates.length} codex ${session.id}` +
+    (skipped ? ` · ${skipped} dup` : '') + (failed ? ` · ${failed} failed, left unmined` : ''));
+  // Codex has no scheduled sweep yet, so a failed session is only retried by hand.
+  if (failed) process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

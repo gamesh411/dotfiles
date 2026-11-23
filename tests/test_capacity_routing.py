@@ -243,6 +243,54 @@ class UnverifiedPreferredRouteTest(unittest.TestCase):
         self.assertEqual(result["recommended"]["provider"], "cursor")
         self.assertIsNone(result["preferred_unverified"])
 
+    def test_stale_record_showing_exhaustion_is_not_an_unverified_preference(self):
+        for used in (100, 90):
+            with self.subTest(used=used):
+                claude = provider("claude", ["claude-opus-5-5"], used=used)
+                claude["quota"]["observed_at"] = (NOW - timedelta(hours=2)).isoformat()
+                claude["quota"]["windows"][0]["status"] = "stale"
+                result = self.run_routine(claude)
+                self.assertEqual(result["recommended"]["provider"], "cursor")
+                self.assertIsNone(result["preferred_unverified"])
+
+    def test_stale_record_with_headroom_is_still_surfaced(self):
+        claude = provider("claude", ["claude-opus-5-5"], used=40)
+        claude["quota"]["observed_at"] = (NOW - timedelta(hours=2)).isoformat()
+        claude["quota"]["windows"][0]["status"] = "stale"
+        self.assertEqual(self.run_routine(claude)["preferred_unverified"]["family"], "opus")
+
+    def test_claude_without_any_quota_data_is_surfaced(self):
+        # What collect() reports before any cache or statusline record exists.
+        claude = provider("claude", ["claude-opus-5-5"])
+        claude["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
+                           "usage_account_matches_cli": False, "error": "native_usage_cache_unavailable"}
+        result = self.run_routine(claude)
+        self.assertEqual(result["recommended"]["provider"], "cursor")
+        self.assertEqual(result["preferred_unverified"]["family"], "opus")
+        self.assertIn("model_quota_missing", result["preferred_unverified"]["reasons"])
+
+    def test_unknown_scope_window_is_still_surfaced(self):
+        claude = provider("claude", ["claude-opus-5-5"])
+        claude["quota"]["observed_at"] = (NOW - timedelta(hours=2)).isoformat()
+        claude["quota"]["windows"].append({"name": "seven_day_oauth_apps", "scope": "oauth_apps_unknown_applicability",
+                                           "status": "known", "used_percent": 10, "remaining_percent": 90,
+                                           "resets_at": (NOW + timedelta(days=1)).isoformat()})
+        result = self.run_routine(claude)
+        self.assertEqual(result["preferred_unverified"]["family"], "opus")
+        self.assertIn("quota_scope_applicability_unknown", result["preferred_unverified"]["reasons"])
+
+    def test_mismatched_cursor_account_is_never_surfaced(self):
+        cursor_row = provider("cursor", [GROK])
+        cursor_row["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
+                               "usage_account_matches_cli": False, "reason": "usage_account_mismatch"}
+        rows = [cursor_row, provider("claude", ["claude-sonnet-5-5"])]
+        with patch.object(routing, "_now", return_value=NOW):
+            result = routing.recommendations({"providers": rows}, "routine")
+        self.assertEqual(result["recommended"]["family"], "sonnet")
+        self.assertNotEqual(result["preferred_unverified"]["provider"], "cursor")
+        grok = next(c for c in result["candidates"] if c["provider"] == "cursor")
+        self.assertIn("usage_account_mismatch", grok["reasons"])
+
     def test_verified_pick_in_the_top_tier_needs_no_unverified_hint(self):
         result = self.run_routine(provider("claude", ["claude-opus-5-5"]))
         self.assertEqual(result["recommended"]["family"], "opus")

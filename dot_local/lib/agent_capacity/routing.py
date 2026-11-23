@@ -204,7 +204,8 @@ CURSOR_EFFORT = "high"
 # reads stale, and silently dropping a tier for that would trade away quality.
 UNMEASURED = frozenset({"quota_unknown", "quota_stale", "quota_window_unknown", "quota_window_expired",
                         "quota_reset_unknown", "model_availability_unverified", "usage_account_unverified",
-                        "model_catalog_unknown", "model_catalog_stale"})
+                        "model_catalog_unknown", "model_catalog_stale", "model_quota_missing",
+                        "quota_scope_applicability_unknown"})
 ORDERS = {task: [route for tier in tiers for route in tier] for task, tiers in TIERS.items()}
 TASKS = tuple(ORDERS)
 CLAUDE_FAMILIES = ("haiku", "sonnet", "opus", "fable")
@@ -295,6 +296,8 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                 reasons.append("ordinary_usage_disallowed")
             if name != "codex" and quota.get("usage_account_matches_cli") is not True:
                 reasons.append("usage_account_unverified")
+            if name == "cursor" and quota.get("usage_account_matches_cli") is False:
+                reasons.append("usage_account_mismatch")
             if family == "router":
                 windows, mapping_reasons = [], ["quota_scope_applicability_unknown"]
             elif name == "codex":
@@ -307,6 +310,9 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                 reset = _time(window["resets_at"])
                 if window["status"] != "known" or window["remaining_percent"] is None:
                     reasons.append("quota_window_unknown")
+                    if (window["remaining_percent"] is not None and reset is not None and reset > now
+                            and window["remaining_percent"] <= reserve_percent):
+                        reasons.append("last_known_quota_constrained")
                 elif reset is None:
                     window["status"] = "unknown"
                     reasons.append("quota_reset_unknown")

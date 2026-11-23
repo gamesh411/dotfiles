@@ -1,6 +1,6 @@
 ---
 name: delegate
-description: Hand bounded work to worker agents (native subagents, or the Codex, Cursor and Claude CLIs) while you keep judgment. Use when a task splits into independent parts (per file, item, student, ticket), carries mechanical bulk (extraction, conversion, repetitive edits, sweeps), or wants a second-model review.
+description: Hand bounded work to worker agents (native subagents, or the Codex, Cursor and Claude CLIs) while you keep judgment. Use when a task splits into independent parts (per file, item, student, ticket), carries mechanical bulk (extraction, conversion, repetitive edits, sweeps), or wants a second-model review. Load it before spawning any subagent or worker.
 ---
 
 # Delegate
@@ -8,6 +8,7 @@ description: Hand bounded work to worker agents (native subagents, or the Codex,
 This skill is the user's standing request to delegate: it counts as being asked to use subagents and the installed worker CLIs.
 You are the **lead**: design, judgment and acceptance stay with you, and workers get bounded briefs.
 Codex and Cursor workers spend their own quota pools rather than yours, so the saving holds even when you could do a part quickly yourself.
+The user wants quality first and, second, every subscription used before it resets.
 `~/.agents/DELEGATION.md` is the policy; `~/.agents/DELEGATION-CLI.md` holds the CLI recipes.
 
 ## 1. Cut the work
@@ -21,12 +22,16 @@ Done when every part is marked and every worker part names its check.
 
 ## 2. Route
 
-Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial|review|aesthetic>` once per batch, reuse it for ten minutes, and use `routing.recommended` when available.
-When it is null, choose a bounded available worker manually using the routing table and live capabilities.
+Follow "Choose the worker" in `DELEGATION.md`: run `agent-capacity --json --task <tiny|routine|substantial|review|research|computer_use|aesthetic>` once per batch, reuse it for ten minutes, and use `routing.recommended` when available.
+The recommendation already applies quality tiers first and spare capacity second.
+Code work goes to Claude Opus or Fable; QA, review, research and the rest go to the other providers, and computer use to Codex (`--task computer_use`).
+When `routing.preferred_unverified` is set, it is a better tier blocked only by missing quota data, often Claude's stale cache: use it unless a check shows it constrained.
+When the recommendation is null, choose a bounded available worker manually: stay in the highest tier with a usable route, and within it prefer the pool with the largest `slack_percent`.
+A native subagent spends the current host's own pool; use it when routing picks that provider or when the part needs this session's tools or context.
 Unknown quota is uncertainty to report, not a prohibition on delegation.
 Verify supported commands and response behavior instead of requiring a particular CLI version.
 Name the model and a low or moderate effort on every dispatch, native spawns included.
-For native subagents use `haiku` for search, lookup and extraction, `opus` for diligent work and review, and `fable` for aesthetic work.
+For native Claude subagents use `opus` for code work and `fable` for aesthetic code work; `haiku` is only a fallback for search, lookup and extraction.
 Prefer `opus` over `sonnet`.
 
 Done when every worker part has a provider, model and effort.

@@ -216,6 +216,9 @@ def normalize(summary, source):
                    dt.datetime.fromisoformat(observed.replace("Z", "+00:00")) <
                    dt.datetime.fromisoformat(cycle_end.replace("Z", "+00:00")))
     enabled = plan.get("enabled") is True
+    minutes = ((dt.datetime.fromisoformat(cycle_end.replace("Z", "+00:00")) -
+                dt.datetime.fromisoformat(cycle_start.replace("Z", "+00:00"))).total_seconds() / 60
+               if cycle_start and cycle_end else None)
     windows = []
     for scope, field in (("cursor_models", "autoPercentUsed"), ("other_models", "apiPercentUsed")):
         used = plan.get(field)
@@ -224,7 +227,8 @@ def normalize(summary, source):
                         "source_field": "individualUsage.plan." + field,
                         "used_percent": used if valid else None,
                         "remaining_percent": max(0.0, min(100.0, 100.0 - used)) if valid and used is not None else None,
-                        "resets_at": cycle_end, "status": "known" if valid else "unknown"})
+                        "resets_at": cycle_end, "window_minutes": minutes if minutes and minutes > 0 else None,
+                        "status": "known" if valid else "unknown"})
     total = plan.get("totalPercentUsed")
     aggregate = {"scope": "individual_plan_aggregate", "used_percent": total if current and enabled else None,
                  "remaining_percent": max(0.0, min(100.0, 100.0 - total)) if total is not None and current and enabled else None,

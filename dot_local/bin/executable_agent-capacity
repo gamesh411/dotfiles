@@ -577,15 +577,17 @@ def human_summary(report):
 
 
 def brief_summary(report):
-    """One line for a SessionStart hook: live headroom per provider plus the suggested worker.
+    """One line for a SessionStart hook: live headroom per provider plus a suggested worker per task class.
 
-    Leads skipped delegation because nothing in the session showed spare capacity;
-    this line makes it visible without the agent having to ask first.
+    Leads skipped delegation because nothing in the session showed spare capacity,
+    and spawned native subagents without ever consulting routing; this line puts
+    every class's route in context without the agent having to ask first.
     """
+    routes = report["routing_by_task"]
     parts = []
     for result in report["providers"]:
         provider = result["provider"]
-        measured = [c for c in report["routing"]["candidates"]
+        measured = [c for c in routes["routine"]["candidates"]
                     if c["provider"] == provider and c["remaining_percent"] is not None]
         if not measured:
             parts.append(provider + " unknown")
@@ -595,14 +597,24 @@ def brief_summary(report):
         known = [w for w in best["windows"] if w["remaining_percent"] is not None]
         binding = min(known, key=lambda w: w["remaining_percent"]) if known else None
         reset = " until " + binding["resets_at"][:16].replace("T", " ") + "Z" if binding and binding.get("resets_at") else ""
-        # Claude aliases are never auto-recommended, but their quota is real.
-        manual = "" if eligible else " (manual pick)"
+        # Eligibility is per task class: a provider suggested for any class is not a manual pick.
+        automatic = any(c["eligible"] for r in routes.values() for c in r["candidates"] if c["provider"] == provider)
+        manual = "" if automatic else " (manual pick)"
         parts.append("{} {:.0f}% left{}{}".format(provider, best["remaining_percent"], reset, manual))
-    chosen = report["routing"].get("recommended")
-    suggestion = chosen["provider"] + "/" + chosen["model_id"] if chosen else "none automatic; choose manually"
+    def route(candidate):
+        return candidate["provider"] + "/" + candidate["model_id"]
+    suggestions = []
+    for task, routing in routes.items():
+        chosen, unverified = routing.get("recommended"), routing.get("preferred_unverified")
+        pick = route(chosen) if chosen else "none automatic"
+        if unverified:
+            pick = route(unverified) + " (quota unverified), else " + pick
+        suggestions.append(task + " " + pick)
     return ("Delegation capacity (read-only, no inference): " + "; ".join(parts)
-            + ". Suggested routine worker: " + suggestion
-            + ". Use the shared delegation policy for bounded worker selection.")
+            + ". Suggested workers: " + "; ".join(suggestions)
+            + ". Quality tier first, then the pool with the most unused allowance; this applies to native subagent"
+            + " spawns too. Prefer an unverified higher-tier route unless a check shows it constrained;"
+            + " choose manually where none is automatic, per the shared delegation policy.")
 
 
 def positive_timeout(value):
@@ -623,8 +635,18 @@ def main():
     parser.add_argument("--task", choices=TASKS, help="Add quota-aware worker advice; never launches a worker")
     parser.add_argument("--reserve-percent", type=float, default=15, help="Local routing reserve, default 15%%; not a provider limit")
     parser.add_argument("--timeout", type=positive_timeout, default=25.0, help="Deadline per provider in seconds, default 25; maximum 120")
-    parser.add_argument("--brief", action="store_true", help="One-line SessionStart summary with routine-task advice; silent inside workers")
+    parser.add_argument("--brief", action="store_true", help="One-line SessionStart summary with advice for every task class; silent inside workers")
+    parser.add_argument("--record-claude-statusline", action="store_true",
+                        help="Claude Code statusLine command: record the live rate limits from stdin; prints nothing")
     args = parser.parse_args()
+    if args.record_claude_statusline:
+        # Anything printed would show in Claude's status line, and a failure must never break it.
+        from agent_capacity.claude import record_statusline
+        try:
+            record_statusline(json.loads(sys.stdin.read(1024 * 1024)))
+        except Exception:
+            pass
+        return 0
     if not math.isfinite(args.reserve_percent) or not 0 <= args.reserve_percent <= 100:
         parser.error("reserve-percent must be between 0 and 100")
     if args.brief:
@@ -633,7 +655,6 @@ def main():
         if os.environ.get("AGENT_DELEGATION_DEPTH") == "1" or os.environ.get("AGENT_CAPACITY_BRIEF"):
             return 0
         os.environ["AGENT_CAPACITY_BRIEF"] = "1"
-        args.task = args.task or "routine"
     providers = ["codex", "claude", "cursor"] if args.provider == "all" else [args.provider]
     def probe(provider):
         try:
@@ -647,10 +668,11 @@ def main():
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
         results = list(pool.map(probe, providers))
     report = {"schema_version": 2, "checked_at": utc_now(), "no_inference": True, "providers": results}
+    from agent_capacity.routing import recommendations
     if args.task:
-        from agent_capacity.routing import recommendations
         report["routing"] = recommendations(report, args.task, args.reserve_percent)
     if args.brief:
+        report["routing_by_task"] = {task: recommendations(report, task, args.reserve_percent) for task in TASKS}
         print(brief_summary(report))
     else:
         print(json.dumps(report, indent=2, allow_nan=False) if args.json else human_summary(report))

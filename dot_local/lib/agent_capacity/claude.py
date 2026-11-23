@@ -5,8 +5,15 @@ credential files, browser cookies, or tokens, never launches the CLI, and never
 sends a model prompt. An account-bound native cache timestamp must prove
 freshness before quota can qualify for routing; a stale or absent cache is
 reported as stale or unknown rather than refreshed here.
+
+Claude Code rewrites that cache only when /usage opens, on a once-a-day check,
+or on an SDK get_usage request, so it is usually hours old. Its statusline,
+though, receives the five-hour and seven-day windows from every API response.
+The statusline command records them here, and a newer record overrides the
+cache's shared windows while model-scoped windows still come from the cache.
 """
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 import os
@@ -127,8 +134,7 @@ def normalize_usage(payload, observed_at=None, now=None):
             "windows": windows}
 
 
-def read_native_snapshot():
-    """Read only the native cache and compare account IDs inside this process."""
+def _read_config():
     config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     preferred = config_dir / ".config.json"
     fallback = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home()) / ".claude.json"
@@ -139,7 +145,20 @@ def read_native_snapshot():
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         return None
-    if not isinstance(data, dict):
+    return data if isinstance(data, dict) else None
+
+
+def _account_digest(data):
+    """A one-way account tag, so the statusline record never stores the raw ID."""
+    account = data.get("oauthAccount") if isinstance(data, dict) else None
+    uuid = account.get("accountUuid") if isinstance(account, dict) else None
+    return hashlib.sha256(uuid.encode()).hexdigest() if isinstance(uuid, str) and uuid else None
+
+
+def read_native_snapshot():
+    """Read only the native cache and compare account IDs inside this process."""
+    data = _read_config()
+    if data is None:
         return None
     cache, account = data.get("cachedUsageUtilization"), data.get("oauthAccount")
     if not isinstance(cache, dict) or not isinstance(account, dict):
@@ -151,6 +170,89 @@ def read_native_snapshot():
     if not matches or observed_ms is None or observed_ms <= 0 or not isinstance(payload, dict):
         return None
     return {"payload": payload, "observed_at": observed_ms / 1000}
+
+
+STATUSLINE_WINDOWS = (("five_hour", 300), ("seven_day", 10080))
+
+
+def statusline_path():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "agent-capacity" / "claude-statusline.json"
+
+
+def _read_statusline_record(digest):
+    try:
+        record = json.loads(statusline_path().read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or digest is None or record.get("account") != digest:
+        return None
+    observed, windows = _number(record.get("observed_at")), record.get("windows")
+    if observed is None or not isinstance(windows, dict):
+        return None
+    return {"observed_at": observed, "windows": windows}
+
+
+def record_statusline(payload, now=None):
+    """Persist the rate limits Claude Code hands its statusline; True when written.
+
+    The transcript's last write stands in for when those limits were observed,
+    because a statusline also reruns on idle triggers such as a mode change.
+    """
+    now = time.time() if now is None else now
+    try:
+        limits = payload.get("rate_limits") if isinstance(payload, dict) else None
+        transcript = payload.get("transcript_path") if isinstance(payload, dict) else None
+        if not isinstance(limits, dict) or not isinstance(transcript, str):
+            return False
+        windows = {}
+        for name, _ in STATUSLINE_WINDOWS:
+            raw = limits.get(name)
+            raw = raw if isinstance(raw, dict) else {}
+            used, reset = _percent(raw.get("used_percentage")), _number(raw.get("resets_at"))
+            if used is not None and reset is not None:
+                windows[name] = {"used_percent": used, "resets_at": reset}
+        digest = _account_digest(_read_config())
+        if not windows or digest is None:
+            return False
+        observed = min(Path(transcript).stat().st_mtime, now)
+        existing = _read_statusline_record(digest)
+        if existing and existing["observed_at"] > observed:
+            return False
+        path = statusline_path()
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # Concurrent sessions each write; a rename keeps every reader on a whole file.
+        temporary = path.with_name(path.name + "." + str(os.getpid()) + ".tmp")
+        handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(handle, "w") as stream:
+            json.dump({"schema": 1, "account": digest, "observed_at": observed, "windows": windows}, stream)
+        os.replace(temporary, path)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _with_statusline(base, record, now):
+    age = now - record["observed_at"]
+    fresh = 0 <= age <= FRESH_SECONDS
+    windows = []
+    for name, minutes in STATUSLINE_WINDOWS:
+        raw = record["windows"].get(name)
+        used = _percent(raw.get("used_percent")) if isinstance(raw, dict) else None
+        reset = _number(raw.get("resets_at")) if isinstance(raw, dict) else None
+        if used is None or reset is None:
+            continue
+        status = "expired" if reset <= now else "known" if fresh else "stale"
+        windows.append({"name": name, "window_minutes": minutes, "scope": "all_models", "model_id": None,
+                        "used_percent": used, "remaining_percent": 100 - used,
+                        "resets_at": _iso(reset), "status": status})
+    replaced = {window["name"] for window in windows}
+    windows += [window for window in (base or {}).get("windows", []) if window["name"] not in replaced]
+    known = any(window["status"] == "known" for window in windows)
+    measured = any(window["used_percent"] is not None for window in windows)
+    return {"provider": "claude", "quota_status": "known" if known else "stale" if measured and not fresh else "unknown",
+            "quota_source": "statusline_rate_limits" + ("+native_usage_cache" if base else ""),
+            "observed_at": _iso(record["observed_at"]), "age_seconds": round(age, 3),
+            "freshness": "fresh" if fresh else "future" if age < 0 else "stale", "windows": windows}
 
 
 def collect():
@@ -165,9 +267,14 @@ def collect():
         if os.environ.get("ANTHROPIC_BASE_URL") not in (None, "", "https://api.anthropic.com"):
             raise ProbeError("native_provider_override_unsupported")
         snapshot = read_native_snapshot()
-        if not snapshot:
+        record = _read_statusline_record(_account_digest(_read_config()))
+        native = normalize_usage(snapshot["payload"], snapshot["observed_at"], now) if snapshot else None
+        if record and (snapshot is None or record["observed_at"] > snapshot["observed_at"]):
+            result = _with_statusline(native, record, now)
+        elif native is not None:
+            result = native
+        else:
             raise ProbeError("native_usage_cache_unavailable")
-        result = normalize_usage(snapshot["payload"], snapshot["observed_at"], now)
         result["usage_account_matches_cli"] = True
         return result
     except ProbeError as exc:

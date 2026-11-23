@@ -7,9 +7,14 @@ startup, resume and clear, excluding compaction. The Python launcher calls the
 repo's tsx through Node, including on Windows.
 
 SessionEnd detaches `mine-codex.mjs` within Codex's three-second timeout. It reads
-Codex JSONL messages and reuses ai-brain's extractor, capture API and ledger.
+Codex JSONL messages and reuses ai-brain's extractor and its shared mining loop
+(`storeCandidates` in `scripts/miner/dedupe.ts`), so each candidate is judged
+against nearby thoughts first: duplicates are skipped and extensions are linked
+for the weekly review. Captures carry the session's project as a hint.
 Records use corpus `codex`, source `codex-tail`, and trust `agent_inferred`.
 Sessions with fewer than six messages and already-mined sessions are skipped.
+A failed capture leaves the session unmined and the miner exits non-zero.
+`--dry-run` extracts and judges a transcript without writing anything.
 Errors go to `~/.config/open-brain/codex-tail.log`. Unlike Claude Code, there is
 currently no scheduled sweep for missed Codex SessionEnd events. A missing or
 unsupported transcript cannot be mined; Codex's transcript format is not stable.

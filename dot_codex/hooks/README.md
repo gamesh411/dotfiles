@@ -13,7 +13,7 @@ against nearby thoughts first: duplicates are skipped and extensions are linked
 for the weekly review. Captures carry the session's project as a hint.
 Records use corpus `codex`, source `codex-tail`, and trust `agent_inferred`.
 Sessions with fewer than six messages and already-mined sessions are skipped.
-A failed capture leaves the session unmined and the hook exits non-zero.
+A failed capture leaves the session unmined and the miner exits non-zero.
 `--dry-run` extracts and judges a transcript without writing anything.
 Errors go to `~/.config/open-brain/codex-tail.log`. Unlike Claude Code, there is
 currently no scheduled sweep for missed Codex SessionEnd events. A missing or

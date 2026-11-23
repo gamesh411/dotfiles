@@ -1,7 +1,8 @@
 """Conservative, read-only model recommendations from quota observations.
 
 The reserve is a local routing heuristic, not a provider guarantee. Percentages
-from different pools are never treated as interchangeable token budgets.
+from different pools are never treated as interchangeable token budgets; pools
+are compared only by how far each is ahead of its own even spending pace.
 """
 
 from datetime import datetime, timezone
@@ -54,14 +55,6 @@ def _cursor_effort(model_id):
     return match.group(1) if match else None
 
 
-def _effort_rank(candidate, task):
-    if candidate["provider"] != "cursor":
-        return 0
-    order = ("low", "medium", "high", "xhigh") if task == "tiny" else ("medium", "low", "high", "xhigh")
-    effort = candidate["reasoning_effort"]
-    return order.index(effort) if effort in order else len(order)
-
-
 def _auth_failure(provider):
     auth = provider.get("auth", {})
     if auth.get("status") in ("unauthenticated", "failed", "unavailable", "error"):
@@ -90,9 +83,20 @@ def _window(raw, scope, name=None, codex=False, individual=False):
     valid = remaining is not None and (individual or used is not None)
     if used is not None and remaining is not None and abs(used + remaining - 100) > 0.00001:
         valid = False
+    minutes = raw.get("window_minutes")
     return {"scope": scope, "name": name or raw.get("name"), "used_percent": used,
             "remaining_percent": remaining if valid else None, "resets_at": reset,
+            "window_minutes": minutes if type(minutes) in (int, float) and math.isfinite(minutes) and minutes > 0 else None,
             "status": "known" if valid and (codex or raw.get("status") == "known") else "unknown"}
+
+
+def _slack(window, reset, now):
+    """Percentage points of allowance above an even pace to the reset; positive means unused headroom."""
+    if window["window_minutes"] is None:
+        return None
+    left = (reset - now).total_seconds() / 60 / window["window_minutes"]
+    # A reset further away than the window is long is inconsistent data, not headroom.
+    return window["remaining_percent"] - 100 * left if 0 <= left <= 1 else None
 
 
 def _codex_windows(provider, entry):
@@ -170,16 +174,38 @@ def _entries(provider):
             and row.get("hidden") is not True]
 
 
-# The user's routing preference per task class. Cursor Grok Fast backs up Claude
-# Opus, and Sonnet only follows both, because Opus is preferred over Sonnet.
-ORDERS = {
-    "tiny": [("codex", "luna"), ("codex", "terra"), ("claude", "haiku")],
-    "routine": [("codex", "terra"), ("codex", "luna"), ("claude", "haiku"), ("claude", "opus"),
-                ("cursor", "grok_fast"), ("claude", "sonnet")],
-    "substantial": [("claude", "opus"), ("cursor", "grok_fast"), ("codex", "sol"), ("claude", "sonnet")],
-    "review": [("codex", "sol"), ("claude", "opus"), ("cursor", "grok_fast"), ("claude", "sonnet")],
-    "aesthetic": [("claude", "fable"), ("codex", "astra")],
+# The user's routing preference per task class, as quality tiers, best first.
+# Quality comes first, so a lower tier is used only when no route above it
+# qualifies. The user also wants every subscription used, so within a tier the
+# pool furthest ahead of its spending pace wins; listed order breaks ties.
+# Code work (routine, substantial, aesthetic) prefers Claude Opus and Fable;
+# everything else goes to the other providers, and computer use only to Codex.
+# The user rates Cursor Grok Fast as Haiku-class, so it ranks where Haiku does,
+# except on tiny work, where it shares Codex's top tier so the Cursor
+# subscription is not starved. Sonnet trails every tier that holds Opus.
+TIERS = {
+    "tiny": [[("codex", "luna"), ("codex", "terra"), ("cursor", "grok_fast")], [("claude", "haiku")]],
+    "routine": [[("claude", "opus"), ("claude", "fable")],
+                [("codex", "terra")],
+                [("codex", "luna")],
+                [("cursor", "grok_fast"), ("claude", "haiku")],
+                [("claude", "sonnet")]],
+    "substantial": [[("claude", "opus"), ("claude", "fable")], [("codex", "sol")], [("claude", "sonnet")]],
+    "review": [[("codex", "sol")], [("claude", "opus")], [("claude", "sonnet")]],
+    "research": [[("codex", "sol")], [("codex", "terra")], [("cursor", "grok_fast"), ("claude", "haiku")]],
+    "computer_use": [[("codex", "sol")], [("codex", "terra")]],
+    "aesthetic": [[("claude", "fable")], [("codex", "astra")]],
 }
+# Cursor work uses the newest Grok version the catalog offers at high effort
+# with Fast serving, so a new release takes over without a config change.
+# Other Grok Fast entries stay visible as candidates but never qualify.
+CURSOR_EFFORT = "high"
+# Reasons that only mean the route could not be measured. Claude quota often
+# reads stale, and silently dropping a tier for that would trade away quality.
+UNMEASURED = frozenset({"quota_unknown", "quota_stale", "quota_window_unknown", "quota_window_expired",
+                        "quota_reset_unknown", "model_availability_unverified", "usage_account_unverified",
+                        "model_catalog_unknown", "model_catalog_stale"})
+ORDERS = {task: [route for tier in tiers for route in tier] for task, tiers in TIERS.items()}
 TASKS = tuple(ORDERS)
 CLAUDE_FAMILIES = ("haiku", "sonnet", "opus", "fable")
 
@@ -189,6 +215,10 @@ def _rank(task, provider, family):
         return ORDERS[task].index((provider, family))
     except ValueError:
         return None
+
+
+def _tier(task, provider, family):
+    return next((i for i, tier in enumerate(TIERS[task]) if (provider, family) in tier), None)
 
 
 def _candidates(provider):
@@ -237,12 +267,16 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
         observed = quota.get("observed_at", provider.get("checked_at") if name == "codex" else None)
         freshness = _freshness(observed, now, max_age_seconds)
         catalog_fresh = _freshness(provider.get("models", {}).get("observed_at", provider.get("checked_at")), now, max_age_seconds)
+        latest_grok = max((_model_version(entry["id"]) for entry, family, _ in _candidates(provider)
+                           if family == "grok_fast" and _cursor_effort(entry["id"]) == CURSOR_EFFORT), default=None)
         for entry, family, advertised in _candidates(provider):
             reasons = []
             rank = _rank(task, name, family)
             effort = _cursor_effort(entry["id"]) if family == "grok_fast" else "low" if task == "tiny" else "medium"
             if family == "grok_fast" and effort is None:
                 reasons.append("encoded_reasoning_effort_unverified")
+            if family == "grok_fast" and (effort != CURSOR_EFFORT or _model_version(entry["id"]) != latest_grok):
+                reasons.append("cursor_model_not_latest_high_fast")
             if rank is None:
                 reasons.append("unsuitable_task_class")
             if _auth_failure(provider):
@@ -268,7 +302,7 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
             else:
                 windows, mapping_reasons = _scoped_windows(provider, entry, family)
             reasons.extend(mapping_reasons)
-            valid_remaining = []
+            valid_remaining, slacks = [], []
             for window in windows:
                 reset = _time(window["resets_at"])
                 if window["status"] != "known" or window["remaining_percent"] is None:
@@ -281,7 +315,9 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                     reasons.append("quota_window_expired")
                 else:
                     valid_remaining.append(window["remaining_percent"])
+                    slacks.append(_slack(window, reset, now))
             remaining = min(valid_remaining) if valid_remaining and len(valid_remaining) == len(windows) else None
+            slack = min(slacks) if remaining is not None and None not in slacks else None
             if remaining is not None:
                 if remaining == 0:
                     reasons.append("quota_exhausted")
@@ -289,24 +325,33 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                     reasons.append("below_local_reserve")
             availability = "unavailable" if "authentication_unavailable" in reasons else "advertised" if advertised else "unverified"
             candidate = {"provider": name, "model_id": entry["id"], "family": family,
-                         "preference_rank": rank, "availability": availability, "freshness": freshness,
+                         "preference_rank": rank, "quality_tier": _tier(task, name, family),
+                         "availability": availability, "freshness": freshness,
                          "observed_at": observed, "quota_source": quota.get("source"),
-                         "remaining_percent": remaining, "scopes": sorted({w["scope"] for w in windows}),
+                         "remaining_percent": remaining, "slack_percent": slack,
+                         "scopes": sorted({w["scope"] for w in windows}),
                          "windows": windows, "reasons": sorted(set(reasons)), "eligible": not reasons,
                          "service_tier": "default" if name == "codex" else None,
                          "reasoning_effort": effort}
             candidates.append(candidate)
-    # Preference first, then latest version. Quota percentages only gate each
-    # route's own reserve, rather than claiming cross-provider price equivalence.
+    # Quality tier first, then unused headroom against each pool's own pace,
+    # then listed preference and latest version. Raw percentages are never
+    # compared across providers; slack is relative to each pool's own window.
     candidates.sort(key=lambda c: _natural(c["model_id"]), reverse=True)
     candidates.sort(key=lambda c: _model_version(c["model_id"]), reverse=True)
-    candidates.sort(key=lambda c: (c["preference_rank"] is None,
-                                    c["preference_rank"] if c["preference_rank"] is not None else 999,
-                                    _effort_rank(c, task)))
+    candidates.sort(key=lambda c: (c["quality_tier"] is None,
+                                    c["quality_tier"] if c["quality_tier"] is not None else 999,
+                                    c["slack_percent"] is None,
+                                    -c["slack_percent"] if c["slack_percent"] is not None else 0,
+                                    c["preference_rank"] if c["preference_rank"] is not None else 999))
     chosen = next((c for c in candidates if c["eligible"]), None)
+    ceiling = chosen["quality_tier"] if chosen else math.inf
+    unverified = next((c for c in candidates if not c["eligible"] and c["quality_tier"] is not None
+                       and c["quality_tier"] < ceiling and set(c["reasons"]) <= UNMEASURED), None)
     return {"task": task, "reserve_percent": reserve_percent, "max_age_seconds": max_age_seconds,
-            "candidates": candidates, "recommended": chosen,
+            "candidates": candidates, "recommended": chosen, "preferred_unverified": unverified,
             "policy": {"execution": "manual", "lead_retains_judgment": True,
                        "reserve_basis": "local heuristic; requires remaining above reserve",
                        "unknown_fallback": "manual bounded work only; never an automatic recommendation",
-                       "cross_provider_percentages": "separate pools, not equally priced tokens"}}
+                       "cross_provider_percentages": "separate pools, not equally priced tokens",
+                       "spare_capacity": "within one quality tier, prefer the pool furthest ahead of its own even pace"}}

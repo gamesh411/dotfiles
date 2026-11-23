@@ -35,7 +35,7 @@ On Windows the helper reads that stdio stream from a thread, because `select()` 
 
 Check `cursor-agent --help`, `cursor-agent status --format json`, and `cursor-agent models`. A successful status alone is insufficient if model discovery fails. `agent-capacity` reports the contradiction instead of assuming readiness.
 
-For read-only work, use `cursor-agent --print --mode ask --sandbox enabled --model '<verified model identifier>' --output-format json` with the brief passed as one argument through a process API. A real request verified `cursor-grok-4.6-high-fast` on 2026-10-13. Refresh the model list before using the example later. For authorized edits, use the client's normal mode in the assigned worktree with sandboxing enabled and the host's permission constraints. Do not use `--force` or unattended approval overrides to fix a blocked run.
+For read-only work, use `cursor-agent --print --mode ask --sandbox enabled --model '<verified model identifier>' --output-format json` with the brief passed as one argument through a process API. Use the newest Grok `-high-fast` identifier in the live model list, which `agent-capacity` recommends; a real request verified `grok-4.7-high-fast` on 2026-11-23. Pass it exactly as listed. For authorized edits, use the client's normal mode in the assigned worktree with sandboxing enabled and the host's permission constraints. Do not use `--force` or unattended approval overrides to fix a blocked run.
 
 Workspace trust is separate from login and command permissions.
 When Cursor reports `Workspace Trust Required`, add `--trust`: the user gave standing approval on 2026-10-22 to trust the directory a delegated task runs in.
@@ -44,7 +44,7 @@ It does not replace `--sandbox enabled` or grant permission for commands.
 `--model` also persists as the interactive default model in `~/.cursor/cli-config.json`, so every worker run changes the user's Cursor selection.
 Run `chezmoi apply ~/.cursor/cli-config.json` after a batch to restore the tracked choice.
 
-The helper reads the first-party `/api/usage-summary` endpoint with the native Cursor session; no model prompt, browser-cookie extraction, or token refresh is used. It keeps the server-reported Cursor Models and Other Models percentages separate. Aggregate monetary fields do not reconstruct either pool. The Grok Fast family uses the Cursor Models pool; model identifiers come from the live catalog rather than a list of accepted version numbers. Auto and Router can consume either pool and receive no automatic recommendation. The endpoint is internal and may change; a missing field stays unknown.
+The helper reads the first-party `/api/usage-summary` endpoint with the native Cursor session; no model prompt, browser-cookie extraction, or token refresh is used. It keeps the server-reported Cursor Models and Other Models percentages separate. Aggregate monetary fields do not reconstruct either pool. The Grok Fast family uses the Cursor Models pool; model identifiers come from the live catalog, and routing qualifies only the newest version at high-fast. Auto and Router can consume either pool and receive no automatic recommendation. The endpoint is internal and may change; a missing field stays unknown.
 
 A fresh CLI status is matched in memory to the native session before its allowance can guide a CLI worker.
 Mismatched accounts stop the request; unverifiable matches remain display-only.
@@ -68,8 +68,13 @@ For machine-checked output, add `--json-schema '<schema>'` and inspect `structur
 Choose an alias accepted by the installed client and inspect the returned model identity.
 An alias is not a promise of a particular model generation.
 
-Claude quota reads only Claude's native account-bound usage cache. The helper never launches the CLI, sends a control request, or sends a model prompt for quota.
-It checks that the cache account matches the signed-in CLI account and that the cache is no older than ten minutes; an older or absent cache is reported as stale or unknown and is not refreshed here.
+Claude quota comes from two local sources, and the helper never launches the CLI, sends a control request, or sends a model prompt for quota.
+Claude Code rewrites its native account-bound usage cache only when `/usage` opens, on a once-a-day check, or on an SDK `get_usage` request (observed in 2.1.323), so that cache is usually hours old.
+The Claude Code statusline receives the five-hour and seven-day windows from every API response, so the managed `statusLine` runs `agent-capacity --record-claude-statusline`, which prints nothing and records them in `~/.cache/agent-capacity/claude-statusline.json` with a one-way account tag.
+It uses the transcript's last write as the observation time, and a write never replaces a newer observation.
+A newer record overrides the cache's shared windows; model-scoped windows such as Fable's exist only in the native cache and keep its staleness.
+Both sources must match the signed-in CLI account and be no older than ten minutes; anything older or absent is reported as stale or unknown and is not refreshed here.
+The statusline is seeded only when none is configured; a custom statusline should call the record command too, or Claude quota falls back to the native cache.
 Unknown quota does not block a bounded worker request through a working authenticated client.
 Never guess that an unverified `/usage` prompt will stay local.
 `--max-budget-usd` is not a subscription-allowance guard.
@@ -78,7 +83,7 @@ Use the minimum remaining allowance across the common session/week and applicabl
 
 ## Routing and another machine
 
-For quota-based advice, use `~/.local/bin/agent-capacity --json --task routine` (or `tiny` / `substantial` / `review` / `aesthetic`). Inspect `routing.recommended`, candidate reasons, and the observation timestamp. Advice never starts a worker. `--reserve-percent 15` is the default local reserve and can be adjusted for the batch. A partial result intentionally exits zero; JSON status fields determine readiness. Reuse fresh output for up to ten minutes; refresh after substantial work or a quota error, respecting server retry delays.
+For quota-based advice, use `~/.local/bin/agent-capacity --json --task routine` (or `tiny` / `substantial` / `review` / `research` / `computer_use` / `aesthetic`). Inspect `routing.recommended`, candidate reasons, and the observation timestamp. Advice never starts a worker. `--reserve-percent 15` is the default local reserve and can be adjusted for the batch. A partial result intentionally exits zero; JSON status fields determine readiness. Reuse fresh output for up to ten minutes; refresh after substantial work or a quota error, respecting server retry delays.
 
 Chezmoi manages `~/.local/bin/agent-capacity`, its standard-library modules under `~/.local/lib/agent_capacity/`, both shared delegation documents, and the existing native instruction pointers.
 Deploy the helper and modules together.
@@ -91,7 +96,7 @@ macOS is live-tested.
 Linux paths are implemented but not live-tested.
 Windows was live-tested on 2026-10-14 for Codex app-server and Cursor usage without a model turn.
 
-Sign in to each provider locally on each machine. Credentials, usage snapshots, trust decisions, and native runtime caches stay on that machine; this helper adds no persistent cache or credentials to chezmoi. Cursor workspace trust remains a separate decision for the intended directory. Updating chezmoi source locally does not publish it to the Git remote.
+Sign in to each provider locally on each machine. Credentials, usage snapshots, trust decisions, and native runtime caches stay on that machine; this helper adds no credentials to chezmoi, and its only persistent file is the local Claude statusline record. Cursor workspace trust remains a separate decision for the intended directory. Updating chezmoi source locally does not publish it to the Git remote.
 
 ## Sources checked 2026-10-13
 

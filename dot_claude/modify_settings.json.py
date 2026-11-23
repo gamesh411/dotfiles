@@ -16,14 +16,16 @@ So the split is by who owns the key:
 The .py extension is what picks the interpreter on Windows, which has no shebang
 support; chezmoi strips it from the target name on every platform.
 """
+import io
 import json
 import os
 import sys
+import typing
 
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n";
 # Claude Code writes this file as UTF-8 with LF. See modify_private_dot_claude.json.py.
-sys.stdin.reconfigure(encoding="utf-8")
-sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+typing.cast(io.TextIOWrapper, sys.stdin).reconfigure(encoding="utf-8")
+typing.cast(io.TextIOWrapper, sys.stdout).reconfigure(encoding="utf-8", newline="\n")
 
 REPO = os.path.expanduser("~/projects/ai-brain").replace("\\", "/")
 
@@ -126,6 +128,11 @@ DEFAULTS = {
     "theme": "auto",
     "terminalProgressBarEnabled": True,
     "agentPushNotifEnabled": True,
+    # Claude Code refreshes its own usage cache only on /usage and a daily check,
+    # so agent-capacity would see Claude quota as stale. The statusline receives
+    # live rate limits after every response; this command records them and prints
+    # nothing. A custom statusline replaces it, and can call the same command first.
+    "statusLine": {"type": "command", "command": "agent-capacity --record-claude-statusline"},
 }
 
 raw = sys.stdin.read()

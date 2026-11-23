@@ -9,16 +9,18 @@ modify_cli-config.json.py for Cursor.
 The .py extension is what picks the interpreter on Windows, which has no shebang
 support; chezmoi strips it from the target name on every platform.
 """
+import io
 import json
 import os
 import re
 import sys
+import typing
 
 # Windows defaults stdout to the ANSI codepage and translates "\n" into "\r\n".
 # Claude Code writes this file as UTF-8 with LF, so without this every apply
 # would rewrite all ~900 lines and chezmoi would report drift forever.
-sys.stdin.reconfigure(encoding="utf-8")
-sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+typing.cast(io.TextIOWrapper, sys.stdin).reconfigure(encoding="utf-8")
+typing.cast(io.TextIOWrapper, sys.stdout).reconfigure(encoding="utf-8", newline="\n")
 
 # Expanded here rather than left as a literal "~": these args are passed
 # straight to execve with no shell, so a tilde would resolve to a path like

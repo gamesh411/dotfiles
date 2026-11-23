@@ -159,7 +159,7 @@ def _scoped_windows(provider, entry, family):
                 applies = model_id in model_names
             else:
                 applies = scope in ("all_models", family) or scope in model_names or scope == "model:" + entry["id"]
-            if scope in UNKNOWN_SCOPES:
+            if _applicability_unknown(raw):
                 reasons.append("quota_scope_applicability_unknown")
         if applies:
             windows.append(_window(raw, scope))
@@ -168,10 +168,13 @@ def _scoped_windows(provider, entry, family):
     return windows, reasons
 
 
-UNKNOWN_SCOPES = ("unknown_model", "oauth_apps_unknown_applicability")
+def _applicability_unknown(raw):
+    return raw.get("model_id") is None and raw.get("scope") in ("unknown_model", "oauth_apps_unknown_applicability")
+
+
 # A deliberate auth or endpoint override means metered usage outside the subscription pools.
 QUOTA_SOURCE_OVERRIDES = frozenset({"native_auth_override_unsupported", "native_provider_override_unsupported",
-                                    "auth_or_endpoint_override"})
+                                    "auth_or_endpoint_override", "stored_auth_override"})
 
 
 def _last_known_constrained(window, now, reserve_percent):
@@ -281,7 +284,7 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
         freshness = _freshness(observed, now, max_age_seconds)
         catalog_fresh = _freshness(provider.get("models", {}).get("observed_at", provider.get("checked_at")), now, max_age_seconds)
         uncertain = [_window(raw, raw.get("scope")) for raw in quota.get("windows", [])
-                     if name == "claude" and isinstance(raw, dict) and raw.get("scope") in UNKNOWN_SCOPES]
+                     if name == "claude" and isinstance(raw, dict) and _applicability_unknown(raw)]
         latest_grok = max((_model_version(entry["id"]) for entry, family, _ in _candidates(provider)
                            if family == "grok_fast" and _cursor_effort(entry["id"]) == CURSOR_EFFORT), default=None)
         for entry, family, advertised in _candidates(provider):

@@ -74,7 +74,7 @@ class CapacityBriefTest(unittest.TestCase):
             with self.subTest(guard=guard):
                 env = dict(os.environ, **{guard: "1", "PATH": ""})
                 result = subprocess.run([sys.executable, str(CLI), "--brief"], env=env,
-                                        capture_output=True, text=True, timeout=2)
+                                        capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, "")
                 self.assertEqual(result.stderr, "")

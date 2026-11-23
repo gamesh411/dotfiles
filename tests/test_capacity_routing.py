@@ -301,16 +301,33 @@ class UnverifiedPreferredRouteTest(unittest.TestCase):
                 self.assertEqual(result["recommended"]["provider"], "cursor")
                 self.assertIsNone(result["preferred_unverified"])
 
-    def test_cursor_endpoint_override_is_never_surfaced(self):
-        cursor_row = provider("cursor", [GROK])
-        cursor_row["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
-                               "usage_account_matches_cli": None, "reason": "auth_or_endpoint_override"}
-        rows = [cursor_row, provider("claude", ["claude-sonnet-5-5"])]
-        with patch.object(routing, "_now", return_value=NOW):
-            result = routing.recommendations({"providers": rows}, "routine")
-        grok = next(c for c in result["candidates"] if c["provider"] == "cursor")
-        self.assertIn("quota_source_override", grok["reasons"])
-        self.assertNotEqual(result["preferred_unverified"]["provider"], "cursor")
+    def test_cursor_endpoint_or_stored_credential_override_is_never_surfaced(self):
+        for reason in ("auth_or_endpoint_override", "stored_auth_override"):
+            with self.subTest(reason=reason):
+                cursor_row = provider("cursor", [GROK])
+                cursor_row["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
+                                       "usage_account_matches_cli": None, "reason": reason}
+                codex_row = provider("codex", ["gpt-6-luna"], used=100)
+                with patch.object(routing, "_now", return_value=NOW):
+                    result = routing.recommendations({"providers": [cursor_row, codex_row]}, "tiny")
+                grok = next(c for c in result["candidates"] if c["provider"] == "cursor")
+                self.assertIn("quota_source_override", grok["reasons"])
+                self.assertIsNone(result["recommended"])
+                self.assertIsNone(result["preferred_unverified"])
+
+    def test_exhausted_window_of_another_model_id_does_not_block_opus(self):
+        # A weekly_scoped row with a machine ID but no display name still names its model.
+        claude = provider("claude", ["claude-opus-5-5", "claude-fable-5-2"])
+        claude["quota"]["observed_at"] = (NOW - timedelta(hours=2)).isoformat()
+        claude["quota"]["windows"].append({"name": "weekly_scoped_0", "scope": "unknown_model",
+                                           "model_id": "claude-fable-5-2", "status": "known",
+                                           "used_percent": 100, "remaining_percent": 0,
+                                           "resets_at": (NOW + timedelta(days=1)).isoformat()})
+        result = self.run_routine(claude)
+        self.assertEqual(result["preferred_unverified"]["model_id"], "claude-opus-5-5")
+        fable = next(c for c in result["candidates"] if c["model_id"] == "claude-fable-5-2")
+        self.assertIn("quota_exhausted", fable["reasons"])
+        self.assertNotIn("quota_scope_applicability_unknown", fable["reasons"])
 
     def test_mismatched_cursor_account_is_never_surfaced(self):
         cursor_row = provider("cursor", [GROK])

@@ -279,6 +279,39 @@ class UnverifiedPreferredRouteTest(unittest.TestCase):
         self.assertEqual(result["preferred_unverified"]["family"], "opus")
         self.assertIn("quota_scope_applicability_unknown", result["preferred_unverified"]["reasons"])
 
+    def test_constrained_unknown_scope_window_blocks_the_unverified_preference(self):
+        for used in (100, 90):
+            with self.subTest(used=used):
+                claude = provider("claude", ["claude-opus-5-5"])
+                claude["quota"]["windows"].append({"name": "seven_day_oauth_apps", "scope": "oauth_apps_unknown_applicability",
+                                                   "status": "known", "used_percent": used, "remaining_percent": 100 - used,
+                                                   "resets_at": (NOW + timedelta(days=1)).isoformat()})
+                result = self.run_routine(claude)
+                self.assertEqual(result["recommended"]["provider"], "cursor")
+                self.assertIsNone(result["preferred_unverified"])
+
+    def test_auth_or_provider_override_is_never_surfaced(self):
+        # What collect() reports when Claude would bill metered API usage instead of the subscription.
+        for error in ("native_auth_override_unsupported", "native_provider_override_unsupported"):
+            with self.subTest(error=error):
+                claude = provider("claude", ["claude-opus-5-5"])
+                claude["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
+                                   "usage_account_matches_cli": False, "reason": error}
+                result = self.run_routine(claude)
+                self.assertEqual(result["recommended"]["provider"], "cursor")
+                self.assertIsNone(result["preferred_unverified"])
+
+    def test_cursor_endpoint_override_is_never_surfaced(self):
+        cursor_row = provider("cursor", [GROK])
+        cursor_row["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],
+                               "usage_account_matches_cli": None, "reason": "auth_or_endpoint_override"}
+        rows = [cursor_row, provider("claude", ["claude-sonnet-5-5"])]
+        with patch.object(routing, "_now", return_value=NOW):
+            result = routing.recommendations({"providers": rows}, "routine")
+        grok = next(c for c in result["candidates"] if c["provider"] == "cursor")
+        self.assertIn("quota_source_override", grok["reasons"])
+        self.assertNotEqual(result["preferred_unverified"]["provider"], "cursor")
+
     def test_mismatched_cursor_account_is_never_surfaced(self):
         cursor_row = provider("cursor", [GROK])
         cursor_row["quota"] = {"status": "unknown", "observed_at": NOW.isoformat(), "windows": [],

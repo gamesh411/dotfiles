@@ -159,13 +159,25 @@ def _scoped_windows(provider, entry, family):
                 applies = model_id in model_names
             else:
                 applies = scope in ("all_models", family) or scope in model_names or scope == "model:" + entry["id"]
-            if scope in ("unknown_model", "oauth_apps_unknown_applicability"):
+            if scope in UNKNOWN_SCOPES:
                 reasons.append("quota_scope_applicability_unknown")
         if applies:
             windows.append(_window(raw, scope))
     if not windows:
         reasons.append("model_quota_missing")
     return windows, reasons
+
+
+UNKNOWN_SCOPES = ("unknown_model", "oauth_apps_unknown_applicability")
+# A deliberate auth or endpoint override means metered usage outside the subscription pools.
+QUOTA_SOURCE_OVERRIDES = frozenset({"native_auth_override_unsupported", "native_provider_override_unsupported",
+                                    "auth_or_endpoint_override"})
+
+
+def _last_known_constrained(window, now, reserve_percent):
+    reset = _time(window["resets_at"])
+    return (window["remaining_percent"] is not None and reset is not None and reset > now
+            and window["remaining_percent"] <= reserve_percent)
 
 
 def _entries(provider):
@@ -268,6 +280,8 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
         observed = quota.get("observed_at", provider.get("checked_at") if name == "codex" else None)
         freshness = _freshness(observed, now, max_age_seconds)
         catalog_fresh = _freshness(provider.get("models", {}).get("observed_at", provider.get("checked_at")), now, max_age_seconds)
+        uncertain = [_window(raw, raw.get("scope")) for raw in quota.get("windows", [])
+                     if name == "claude" and isinstance(raw, dict) and raw.get("scope") in UNKNOWN_SCOPES]
         latest_grok = max((_model_version(entry["id"]) for entry, family, _ in _candidates(provider)
                            if family == "grok_fast" and _cursor_effort(entry["id"]) == CURSOR_EFFORT), default=None)
         for entry, family, advertised in _candidates(provider):
@@ -298,6 +312,8 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                 reasons.append("usage_account_unverified")
             if name == "cursor" and quota.get("usage_account_matches_cli") is False:
                 reasons.append("usage_account_mismatch")
+            if quota.get("reason") in QUOTA_SOURCE_OVERRIDES:
+                reasons.append("quota_source_override")
             if family == "router":
                 windows, mapping_reasons = [], ["quota_scope_applicability_unknown"]
             elif name == "codex":
@@ -310,8 +326,7 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                 reset = _time(window["resets_at"])
                 if window["status"] != "known" or window["remaining_percent"] is None:
                     reasons.append("quota_window_unknown")
-                    if (window["remaining_percent"] is not None and reset is not None and reset > now
-                            and window["remaining_percent"] <= reserve_percent):
+                    if _last_known_constrained(window, now, reserve_percent):
                         reasons.append("last_known_quota_constrained")
                 elif reset is None:
                     window["status"] = "unknown"
@@ -322,6 +337,8 @@ def recommendations(report, task, reserve_percent=15, max_age_seconds=600):
                 else:
                     valid_remaining.append(window["remaining_percent"])
                     slacks.append(_slack(window, reset, now))
+            if any(_last_known_constrained(window, now, reserve_percent) for window in uncertain):
+                reasons.append("possibly_applicable_quota_constrained")
             remaining = min(valid_remaining) if valid_remaining and len(valid_remaining) == len(windows) else None
             slack = min(slacks) if remaining is not None and None not in slacks else None
             if remaining is not None:
